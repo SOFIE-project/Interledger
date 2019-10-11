@@ -1,6 +1,4 @@
-# abc class
 from typing import List, Dict
-from threading import Thread, Condition
 
 class Transfer(object):
     pass
@@ -59,4 +57,3 @@ class Responder(object):
         # actually can be error / reject / accept, tristate ?
         # but for now: True = accept, False = reject
         assert False, "must be implemented in child class"
-

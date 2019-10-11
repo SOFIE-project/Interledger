@@ -53,7 +53,7 @@ Currently the Interledger component supports Ethereum. In order for the componen
 
 The figure below shows an implementation of the Initiator and Responder connected to the Ethereum network.
 
-![Interledger](/imgs/Interledger-New.png)
+![Interledger](/imgs/Struct.png)
 
 ### Relation with SOFIE
 
@@ -212,19 +212,15 @@ The `truffle/test/` directory contains the scripts to unit test the smart contra
 
 ### Running the tests
 
-To test the Interledger module alone, with mock Initiator and Responder, execute:
-```bash
-# Test the interledger module alone
-make test-interledger
-```
+Read the README in [the testing directory](/tests/README.md) for pytest tests and test structure.
 
-To test the smart contract with Truffle (it automatically compiles the contracts):
+To test the smart contracts located in `truffle` directory (it compiles them automatically):
 ```bash
 # Test the contracts
 make test-contracts
 ```
 
-Similarly, to test the modules Ethereum Initiator and Responder with a Mock Interledger:
+<!-- Similarly, to test the modules Ethereum Initiator and Responder with a Mock Interledger:
 ```bash
 # Compile contracts
 make compile
@@ -241,11 +237,13 @@ make compile
 ganache-cli -p 8545
 ganache-cli -p 7545
 make test-integration
-```
+``` -->
 
 ### Evaluating the results
 
 At the current state of the implementation, no particular results are logged after the tests.
+
+***
 
 ## Integration
 

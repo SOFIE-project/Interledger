@@ -113,7 +113,7 @@ The protocol rollbacks to the initial state by means of the ``abort()`` operatio
 
 The figure below shows the modules implementing the component. It also shows an example using the Ethereum network as ledger.
 
-![Interledger](../../imgs/Interledger-New.png)
+![Interledger](../../imgs/Struct.png)
 
 ### Initiator
 

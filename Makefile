@@ -26,6 +26,12 @@ test-integration:
 	PYTHONPATH=$$PWD/src pytest tests/test_integration.py -s
 
 
+test-db-manager:
+	PYTHONPATH=$$PWD/src pytest tests/test_db_manager.py -s
+
+test-state-initiator-responder:
+	PYTHONPATH=$$PWD/src pytest tests/test_state_initiator_responder.py -s
+
 # Documentation
 html:
 	cd doc && make html

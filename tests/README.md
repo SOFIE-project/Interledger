@@ -1,33 +1,40 @@
-# Running Interledger tests
+# Running tests
 
 Testing framework: `pytest`
 
-### Interledger unit testing
+Include pytest option `-s` to output the test prints; `-v` to list all the test methods.
 
-**Setup requirements:** None
+## Unit tests
 
-    cd ..
-    PYTHONPATH=$PWD/src pytest tests/test_interledger.py -s
+The current modules have a lot of dependencies, so unit tests are very small, mainly concerning initializations.
 
-### Ethereum ledger unit testing
+    pytest tests/unit/
+    pytest tests/unit/test_interledger.py
 
-**Setup requirements:** Ethereum local network (e.g. Ganache): `port: 8545`
+## Integration tests
 
-    cd ..
-    PYTHONPATH=$PWD/src pytest tests/test_ethereum_ledger.py -s
+This test set is more rich than unit test set. In this set there are most most of the methods provided by the modules which can be tested without any other external resource / service.
 
-### Integration testing
+    pytest tests/integration/
+    pytest tests/integration/test_interledger.py
 
-**Setup requirements:** 2x Ethereum local networks (e.g. Ganache): `port: 8545` and `port: 7545`
+## System tests
 
-    cd ..
-    PYTHONPATH=$PWD/src pytest tests/test_integration.py -s
+This test set is not self-dependent. The modules interacting with ethereum need a local ethereum instance running. These examples use ganache-cli.
+
+**One instance running on port 8545**
+
+    ganache-cli -p 8545
+    pytest tests/system/test_ethereuminitiator.py
+    pytest tests/system/test_ethereumresponder.py
+
+**Two instances running on ports 8545 and 7545**
+
+    ganache-cli -p 8545
+    ganache-cli -p 7545
+    pytest tests/system/
+    pytest tests/system/test_interledger.py
 
 ## Known issues
 - importing `web3` raises a warning in pytest environment;
 - integration test, after running `interledger` needs `await asyncio.sleep()` before emitting event, otherwise coroutines block;
-
-## TODO
-- [ ] Structure the code better into packages, add a `setup.py` and avoid to modify PYTHONPATH at command line;
-- [ ] Figure out how to synchronize better interldeger functions;
-- [ ] Provide better tests?
