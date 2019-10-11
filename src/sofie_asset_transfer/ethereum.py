@@ -30,7 +30,6 @@ class EthereumInitiator(Web3Initializer, Initiator):
         :param str url: The web3 url
         :param int port: The web3 port, if any (default=None) 
         """
-
         Web3Initializer.__init__(self, url, port)
         self.contract_init = contract
         self.last_block = self.web3.eth.blockNumber
@@ -45,8 +44,8 @@ class EthereumInitiator(Web3Initializer, Initiator):
         for e in entries:
             args = e['args']
             t = Transfer()
-            t.data = {'tokenId': args['id'],
-                      'assetId': args['data'],
+            t.data = {'assetId': args['id'],
+                      'data': args['data'],
                       'from': args['from']}
             transfers.append(t)
         return transfers
@@ -88,7 +87,7 @@ class EthereumInitiator(Web3Initializer, Initiator):
         """
 
         # Return transaction hash, need to wait for receipt
-        tx_hash = self.contract_init.functions.abort(transfer.data["tokenId"]).transact({'from': self.minter})
+        tx_hash = self.contract_init.functions.abort(transfer.data["assetId"]).transact({'from': self.minter})
         tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
         if tx_receipt['status']:
             return True
@@ -106,7 +105,7 @@ class EthereumInitiator(Web3Initializer, Initiator):
         """
         
         # Return transaction hash, need to wait for receipt
-        tx_hash = self.contract_init.functions.commit(transfer.data["tokenId"]).transact({'from': self.minter})
+        tx_hash = self.contract_init.functions.commit(transfer.data["assetId"]).transact({'from': self.minter})
         tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
         if tx_receipt['status']:
             return True
@@ -144,7 +143,7 @@ class EthereumResponder(Web3Initializer, Responder):
         """
 
         # Return transaction hash, need to wait for receipt
-        tx_hash = self.contract_resp.functions.accept(transfer.data["tokenId"]).transact({'from': self.minter})
+        tx_hash = self.contract_resp.functions.accept(transfer.data["assetId"]).transact({'from': self.minter})
         tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
         if tx_receipt['status']:
             return True

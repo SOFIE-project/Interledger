@@ -1,10 +1,11 @@
 from .interfaces import Initiator, Responder
+from .state_interfaces import StateInitiator, StateResponder, AssetState
 import time, asyncio
 from asyncio import Condition
 from typing import List
 import concurrent.futures
 from enum import Enum
-
+from db_manager.db_manager import DBManager
 
 class State(Enum):
     """State of a transfer during the protocol
@@ -33,7 +34,7 @@ class Interledger(object):
     """
 
     def __init__(self, initiator: Initiator, responder: Responder):
-        """
+        """Constructor
         :param object initiator: The Initiator object
         :param object responder: The Responder object
         """
@@ -43,7 +44,7 @@ class Interledger(object):
         self.transfers_sent = []
         self.pending = 0
         self.keep_running = True
-        
+
         # Debug
         self.results_abort = []
         self.results_commit = []
@@ -62,7 +63,7 @@ class Interledger(object):
         transfers = await self.initiator.get_transfers()
         if len(transfers) > 0:
             self.transfers.extend(transfers)
-
+    
         return len(transfers)
 
  
@@ -78,7 +79,7 @@ class Interledger(object):
                 self.transfers_sent.append(t)
                 self.pending += 1
 
-    
+
     # blocking, trigger
     async def transfer_result(self):
         """Store the results of the transfers sent to the Responder. This operation blocks until at least one transfer has been completed.
@@ -114,11 +115,12 @@ class Interledger(object):
 
 
     async def run(self):
-        """Run the interledger. Wait for transfers from the Initiator, forward them to the Responder and finalize the protocol with the Intiator.
+        """Run the interledger.
+        Wait for new transfers from the Initiator, forward them to the Responder and finalize the protocol with the Intiator.
         """
  
         while self.keep_running:
-
+            
             receive = asyncio.ensure_future(self.receive_transfer())
 
             if not self.pending:
@@ -135,3 +137,59 @@ class Interledger(object):
 
 
         # TODO Add some closing procedure
+
+
+class StateInterledger(Interledger):
+    """
+    Subclass of Interledger supporting StateInitiator and StateResponder
+    """
+
+    def __init__(self, initiator: StateInitiator, responder: StateResponder):
+        """Get pending transfers and put them in the lists used in the protocol
+        """
+        super().__init__(initiator, responder)
+        self.transfers = self.restore_pending_transfers_ready()
+        self.transfers_sent = self.restore_pending_transfers_sent()
+        self.pending += len(self.transfers_sent)
+
+
+    def restore_pending_transfers_ready(self):
+        """Query the current transfers in state (TransferOut | NotHere)
+        from Initiator: TransferOut
+        from Responder: NotHere
+        The protocol has to accept and then commit such transfers 
+        """
+        t_list_initiator = self.initiator.query_by_state(AssetState.TRANSFER_OUT)
+        t_list_responder = self.responder.query_by_state(AssetState.NOT_HERE)
+        ids = list(set(t_list_initiator).intersection(t_list_responder))
+
+        new_transfers = []
+        for i in ids:
+            t = Transfer()
+            t.data = {}
+            t.data["assetId"] = i
+            new_transfers.append(t)
+        # new_transfers = [Transfer() for i in ids]
+        return new_transfers
+
+
+    def restore_pending_transfers_sent(self):
+        """Query the current transfers in state (TransferOut | Here)
+        from Initiator: TransferOut
+        from Responder: Here
+        The protocol has already accepted and needs to commit such transfers 
+        """
+        t_list_initiator = self.initiator.query_by_state(AssetState.TRANSFER_OUT)
+        t_list_responder = self.responder.query_by_state(AssetState.HERE)
+        ids = list(set(t_list_initiator).intersection(t_list_responder))
+        
+        new_transfers = []
+        for i in ids:
+            t = Transfer()
+            t.data = {}
+            t.data["assetId"] = i
+            t.state = State.COMPLETED # accept() already been called by Responder
+            t.result = True # needs to commit() this uncomplted transfer
+            new_transfers.append(t)
+        # new_transfers = [Transfer() for i in ids]
+        return new_transfers

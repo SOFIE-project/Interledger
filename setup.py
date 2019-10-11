@@ -15,6 +15,7 @@ setup(
     packages=find_packages(where='src'),
     install_requires=[
         'web3',
+        'sqlalchemy',
     ],
     tests_require=['pytest', 'pytest-asyncio'],
     zip_safe=False

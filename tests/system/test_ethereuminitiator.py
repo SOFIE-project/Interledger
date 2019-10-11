@@ -1,10 +1,10 @@
 from sofie_asset_transfer.interledger import Transfer
 from sofie_asset_transfer.ethereum import Web3Initializer, EthereumInitiator, EthereumResponder
-from typing import List
 import pytest, time
 import asyncio 
 import json, time
 from web3 import Web3
+import os
 
 # Helper functions
 def readContractData(path):
@@ -22,6 +22,17 @@ def create_contract(w3, abi, bytecode, _from):
     address = tx_receipt.contractAddress
     token_instance = w3.eth.contract(abi=abi, address=address)
     return token_instance
+
+# current working directory changes if you run pytest in ./, or ./tests/ or ./tests/system
+cwd = os.getcwd()
+contract_path = "truffle/build/contracts/GameToken.json"
+
+if "system" in cwd.split('/'):
+    contract_path = "../../" + contract_path
+elif "tests" in cwd.split('/'):
+    contract_path = "../" + contract_path
+else:
+    contract_path = "./" + contract_path
 
 
 # # # Global view
@@ -55,7 +66,7 @@ async def test_initiator_get_transfers():
     port = 8545
     w3 = Web3(Web3.HTTPProvider(url+":"+str(port)))
 
-    abi, bytecode = readContractData("./truffle/build/contracts/GameToken.json")
+    abi, bytecode = readContractData(contract_path)
 
     contract_minter = w3.eth.accounts[0]
     bob = w3.eth.accounts[1]
@@ -76,7 +87,6 @@ async def test_initiator_get_transfers():
 
     ### Test Ethereum Initiator ###
 
-
     init = EthereumInitiator(contract_minter, token_instance, url, port=port)
 
     # Emit 1 event and call get_transfers
@@ -85,7 +95,7 @@ async def test_initiator_get_transfers():
 
     t = transfers[0]
     assert len(transfers) == 1
-    assert t.data['tokenId'] == ids[0]
+    assert t.data['assetId'] == ids[0]
     assert t.data['from'] == bob
 
     # Emit 2 events and call get_transfers
@@ -120,7 +130,7 @@ async def test_initiator_abort():
     port = 8545
     w3 = Web3(Web3.HTTPProvider(url+":"+str(port)))
 
-    abi, bytecode = readContractData("./truffle/build/contracts/GameToken.json")
+    abi, bytecode = readContractData(contract_path)
 
     contract_minter = w3.eth.accounts[0]
     bob = w3.eth.accounts[1]
@@ -139,7 +149,7 @@ async def test_initiator_abort():
 
     t = Transfer()
     t.data = dict()
-    t.data["tokenId"] = tokenId
+    t.data["assetId"] = tokenId
 
 
     ### Test Ethereum Initiator ###
@@ -147,7 +157,9 @@ async def test_initiator_abort():
 
     init = EthereumInitiator(contract_minter, token_instance, url, port=port)
 
-    tx = await init.abort_transfer(t)
+    result = await init.abort_transfer(t)
+
+    assert result == True
 
 
 #
@@ -168,7 +180,7 @@ async def test_initiator_commit():
     port = 8545
     w3 = Web3(Web3.HTTPProvider(url+":"+str(port)))
 
-    abi, bytecode = readContractData("./truffle/build/contracts/GameToken.json")
+    abi, bytecode = readContractData(contract_path)
 
     contract_minter = w3.eth.accounts[0]
     bob = w3.eth.accounts[1]
@@ -187,7 +199,7 @@ async def test_initiator_commit():
 
     t = Transfer()
     t.data = dict()
-    t.data["tokenId"] = tokenId
+    t.data["assetId"] = tokenId
 
 
     ### Test Ethereum Initiator ###
@@ -195,58 +207,6 @@ async def test_initiator_commit():
 
     init = EthereumInitiator(contract_minter, token_instance, url, port=port)
 
-    tx = await init.commit_transfer(t)
+    result = await init.commit_transfer(t)
 
-
-###################################
-
-# # # Local view
-# #
-# #  EthereumInitiator -> Ledger
-#
-# # 
-#
-
-#
-# Test receive_transfer
-#
-
-@pytest.mark.asyncio
-async def test_responder_receive():
-
-    # Setup the state
-        # Deploy contract
-        # Mint token
-        # Call accept() from the minter
-        # Call transferOut() from token owner
-        
-    # Setup web3 and state
-    url = "HTTP://127.0.0.1"
-    port = 8545
-    w3 = Web3(Web3.HTTPProvider(url+":"+str(port)))
-
-    abi, bytecode = readContractData("./truffle/build/contracts/GameToken.json")
-
-    contract_minter = w3.eth.accounts[0]
-    bob = w3.eth.accounts[1]
-
-    token_instance = create_contract(w3, abi, bytecode, contract_minter)
-
-    # Create a token
-    tokenId = 123
-    tokenURI = "weapons/"
-    assetId = w3.toBytes(text="Vorpal Sword")
-
-    token_instance.functions.mint(bob, tokenId, tokenURI, assetId).transact({'from': contract_minter})
-
-    t = Transfer()
-    t.data = dict()
-    t.data["tokenId"] = tokenId
-
-
-    ### Test Ethereum Responder ###
-    
-
-    init = EthereumResponder(contract_minter, token_instance, url, port=port)
-
-    tx = await init.receive_transfer(t)
+    assert result == True

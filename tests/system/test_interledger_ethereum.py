@@ -1,10 +1,9 @@
 from sofie_asset_transfer.interledger import Interledger, Transfer
 from sofie_asset_transfer.ethereum import Web3Initializer, EthereumInitiator, EthereumResponder
 from web3 import Web3
-from typing import List
-import pytest, time, json
+from unittest.mock import patch
+import pytest, time, json, os
 import asyncio
-import concurrent.futures
 
 # Helper functions
 def readContractData(path):
@@ -24,6 +23,17 @@ def create_contract(w3, abi, bytecode, _from):
     return token_instance
 
 
+# current working directory changes if you run pytest in ./, or ./tests/ or ./tests/system
+cwd = os.getcwd()
+contract_path = "truffle/build/contracts/GameToken.json"
+
+if "system" in cwd.split('/'):
+    contract_path = "../../" + contract_path
+elif "tests" in cwd.split('/'):
+    contract_path = "../" + contract_path
+else:
+    contract_path = "./" + contract_path
+
 # # # # Global view
 # # #
 # # #  LedgerA <- Initiator <- Interledeger -> Responder -> LedgerB
@@ -31,7 +41,7 @@ def create_contract(w3, abi, bytecode, _from):
 
 
 @pytest.mark.asyncio
-async def test_receive_transfer():
+async def test_interledger_with_two_ethereum():
     
     # Setup web3
     url = "HTTP://127.0.0.1"
@@ -39,7 +49,7 @@ async def test_receive_transfer():
     portB = 7545
     w3_A = Web3(Web3.HTTPProvider(url+":"+str(portA)))
     w3_B = Web3(Web3.HTTPProvider(url+":"+str(portB)))
-    abi, bytecode = readContractData("./truffle/build/contracts/GameToken.json")
+    abi, bytecode = readContractData(contract_path)
 
     contract_minter_A = w3_A.eth.accounts[0]
     contract_minter_B = w3_B.eth.accounts[0]
@@ -76,6 +86,7 @@ async def test_receive_transfer():
     interledger = Interledger(inititator, responder)
 
     print("Creating Intelredger run coroutine")
+    
 
     interledger_task = asyncio.ensure_future(interledger.run())
 

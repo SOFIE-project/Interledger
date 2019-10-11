@@ -2,7 +2,7 @@ from sofie_asset_transfer.interledger import Interledger, Transfer, State
 from typing import List
 import pytest, time
 import asyncio 
-import concurrent.futures
+from unittest.mock import patch
 
 test_receive = True
 test_send = True
@@ -202,11 +202,11 @@ async def test_interledger_process_result_abort():
 # Test run
 #
 
-
 @pytest.mark.asyncio
-async def test_interledger_run():
+async def test_interledger_run_no_restore():
 
     if test_run:
+
         l1, l2, l3 = [], [], []
         for i in range(4):
             l1.append(Transfer())
