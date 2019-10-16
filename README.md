@@ -36,7 +36,7 @@ In particular, the Interledger component currently supports the “transfer” o
 
 ### Architecture Overview
 
-**Premise:** to avoid confusion, with **Interledger component** we refer to the set of smart contracts and modules, meanwhile with **Interledger module** to the class named Interledger.
+> **PREMISE:** to avoid confusion, with **Interledger component** we refer to the set of smart contracts and modules, meanwhile with **Interledger module** to the class named Interledger.
 
 The asset transfer functionality of the Interledger component is implemented with a state machine. Each asset has a "state" indicating its presence or absence in a ledger. The state machine is implemented as follows:
 
@@ -82,13 +82,11 @@ Software modules: **Python 3.6**.
 
 Smart contracts: **Solidity 0.5**.
 
-[Truffle framework](https://www.trufflesuite.com/) project and other NodeJs modules: **node package manager, npm**.
-
-To implement the Ethereum version of both Initiator and Responder, the python [web3 library](https://web3py.readthedocs.io/en/stable/web3.eth.html) is needed.
+NodeJs and node package manager, (npm).
 
 ### Installation
 
-Install Truffle (which includes the Solidity compiler) and [OpenZeppelin](https://github.com/openzeppelin/openzeppelin-contracts) smart contract dependencies.
+Install Truffle (which includes the Solidity compiler) and [OpenZeppelin](https://github.com/openzeppelin/openzeppelin-contracts) smart contract dependencies both locally.
 
 ```bash
 cd truffle/
@@ -138,19 +136,27 @@ For `type` =  `ethereum`, the required options are:
 - **minter:** the contract minter (creator) address;
 - **contract:** the contract address.
 
-Example of the Interledger configuration file:
+Example of the Interledger configuration file *config-file-name.cfg*:
 
     [service]
     direction=both
     left=ganache
     right=ganache
 
-    [ganache]
+    [ganache8545]
     type=ethereum
     url=http://localhost
     port=8545
     minter=0x63f7e0a227bCCD4701aB459b837446Ce61aaEb6D
     contract=0x50dc31410Cae2527b034233338B85872BE67EEe6
+
+    [ganache7545]
+    type=ethereum
+    url=http://localhost
+    port=7545
+    minter=0xc4C13639a867EfA9f863aF99A4c8d002E57198e0
+    contract=0xba83df5f1DF4aB344240eC9F1E096790c88A216A
+
 
 ### Execution
 
@@ -160,13 +166,16 @@ Run the following command:
 
 Where `config-file-name.cfg` is a configuration file for the setup of the interledger component, following the previously described `ini` format.
 
-This script will create a proper Interledger component instance according to the input configuration file and call the `Interledger.run()` routine which will listen to events coming from the connected ledger(s). The script can be interrupted with: `^C`.
+This script will create a proper Interledger component instance according to the input configuration file and calls the `Interledger.run()` routine which will listen to events coming from the connected ledger(s). The script can be interrupted with: `^C`.
 
 **Example of Interledger running locally**
 
-This example uses two different ganache networks (both running in localhost, but listening on two different ports). For the asset, this example uses ERC721-compatible [token](/truffle/contracts/GameToken.sol) contract, which also implements the state interface provided by [this contract](/truffle/contracts/StateContract.sol).
+> **NOTE:** This example uses this [ERC721-compatible](/truffle/contracts/GameToken.sol) contract, which also implements the protocol interface provided by [this contract](/truffle/contracts/AssetTransferInterface.sol).
 
-From now on, we use [ganache-cli](https://github.com/trufflesuite/ganache-cli) as local Ethereum instance. The option ``-p`` identifies the port.
+> **NOTE2:** From now on, we use [ganache-cli](https://github.com/trufflesuite/ganache-cli) as local Ethereum instance. The option ``-p`` identifies the port.
+
+This example uses two different ganache networks (both running in localhost, but listening on two different ports).
+
 
 To setup, first run two ``ganache-cli`` and then migrate the contracts by help of the Makefile. Finally, run the interledger.
 
@@ -180,22 +189,11 @@ make migrate-7545
 python3 start_interledger.py local-config.cfg
 ```
 
-Since every run of `ganache-cli` generates different addresses, migration targets (`migrate-8545` and `migrate-7545`) deploy the contracts in their target networks (localhost:8545 and localhost:7545 respectively), and then modify the `local-config.cfg` file with the account and contract addresses.
+Since every run of `ganache-cli` generates different addresses, migration targets (`migrate-8545` and `migrate-7545`) deploy the contracts in their target networks (localhost:8545 and localhost:7545 respectively), and then modify the `local-config.cfg` file with the minter and contract addresses.
 
-At this point is possible to create tokens in the target networks. When a  `transferOut()` function (see [this readme](/src/sofie_asset_transfer/README.md)) will be called on a asset, the Interledger component will transfer that asset to the other network.
+**Interaction**
 
-This can be done via scripts using truffle:
-```bash
-cd truffle
-truffle execute your-script.js --network network-name
-```
-
-or interactively using truffle console:
-```bash
-cd truffle
-truffle console --network network-name
-(network-name)> ...
-```
+Is possible to interact with the component through the CLI app in [this directory](./demo/cli).
 
 ***
 
@@ -216,28 +214,8 @@ Read the README in [the testing directory](/tests/README.md) for pytest tests an
 
 To test the smart contracts located in `truffle` directory (it compiles them automatically):
 ```bash
-# Test the contracts
 make test-contracts
 ```
-
-<!-- Similarly, to test the modules Ethereum Initiator and Responder with a Mock Interledger:
-```bash
-# Compile contracts
-make compile
-# Test the Ethereum initiator and responder
-ganache-cli -p 8545
-make test-ethereum-ledger
-```
-
-To test both Ethereum Initiator, Responder and Interledger run two local Ethereum instances and execute the test as follows:
-```bash
-# Compile contracts
-make compile
-# Test the Ethereum initiator and responder with interledger
-ganache-cli -p 8545
-ganache-cli -p 7545
-make test-integration
-``` -->
 
 ### Evaluating the results
 

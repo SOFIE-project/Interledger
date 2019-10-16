@@ -1,6 +1,6 @@
 pragma solidity ^0.5.0;
 
-import "./StateContract.sol";
+import "./AssetTransferInterface.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721Metadata.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721Burnable.sol";
@@ -8,26 +8,35 @@ import "@openzeppelin/contracts/access/roles/MinterRole.sol";
 
 /**
  * ERC721 standard for a decentralized asset exchanging game
- * A ERC721 token estension which includes the possibility to mint and burn tokens.
- * Each token has its ERC721 Id, plus two more data: -uri and -assetId.
- * The uri storage is managed by the ERC721Metadata parent.
- * The assetId is managed by the current extension
- *  Moreover, a token has a state: Here, TransferOut, NotHere
- *     NotHere represents the asset identified by the token in use in the game
- *     Here represents the asset identified by the token tradeable in the Eth blockchain as a ERC721 token
- *     TransferOut represents the willingness of the asset owner to use the asset back in the game
+ *
+ * A ERC721 token implementation including the lifecycle methods: mint and burn.
+ * Each token has its ERC721 Id, plus two more data: -uri and -name.
+ * The - 'tokenId' corresponds to the IL protocol assetId;
+ *      In other words, the ERC implementation uses the token ids as ids for the IL asset transfer protocol.
+ * The - 'uri' storage is managed by the ERC721Metadata parent;
+ * The - 'name' is managed by this contract.
+ *
+ * Example:
+ *  tokenId = 123
+ *  uri = /objects/toys/
+ *  name = ball123
+ *
+ *  Moreover, implementing AssetTransferInterface, each token has a state: Here, TransferOut, NotHere
+ *     - 'NotHere' represents the asset identified by the token in use in the game
+ *     - 'Here' represents the asset identified by the token tradeable in the Eth blockchain as a ERC721 token
+ *     - 'TransferOut' represents the willingness of the asset owner to use the asset back in the game
  */
-contract GameToken is ERC721, ERC721Metadata, MinterRole, ERC721Burnable, StateContract {
+contract GameToken is ERC721, ERC721Metadata, MinterRole, ERC721Burnable, AssetTransferInterface {
 
     ////
     // Data
     ////
     struct GameAsset {
-        bytes32 id;
+        bytes32 name;
         State state;
     }
 
-    event NewTokenAsset(address to, string uri, bytes32 assetId, uint256 tokenId);
+    event NewTokenAsset(address to, string uri, bytes32 name, uint256 tokenId);
 
     // Data concerning the asset
     mapping(uint256 => GameAsset) private assetMap;
@@ -37,7 +46,7 @@ contract GameToken is ERC721, ERC721Metadata, MinterRole, ERC721Burnable, StateC
     // Modifiers
     ////
     modifier _existingAsset(uint256 tokenId) {
-        require(assetMap[tokenId].id != 0x0, "GameToken: The asset must be created");
+        require(assetMap[tokenId].name != 0x0, "GameToken: The asset must be created");
         _;
     }
 
@@ -45,7 +54,7 @@ contract GameToken is ERC721, ERC721Metadata, MinterRole, ERC721Burnable, StateC
     ////
     // Functions
     ////
-    constructor (string memory name, string memory symbol) public ERC721Metadata(name, symbol) { }
+    constructor (string memory title, string memory symbol) public ERC721Metadata(title, symbol) { }
 
 
     ////
@@ -57,16 +66,16 @@ contract GameToken is ERC721, ERC721Metadata, MinterRole, ERC721Burnable, StateC
     /// @param to The receiver of the token
     /// @param tokenId The token id
     /// @param tokenURI The URI describing the token
-    /// @param assetId The paired assetId of the token
-    function mint(address to, uint256 tokenId, string memory tokenURI, bytes32 assetId) public onlyMinter returns (bool) {
+    /// @param name The paired name of the token
+    function mint(address to, uint256 tokenId, string memory tokenURI, bytes32 name) public onlyMinter returns (bool) {
 
         super._mint(to, tokenId);
         super._setTokenURI(tokenId, tokenURI);
 
         // When a token is minted is not currently in trading mode
-        assetMap[tokenId] = GameAsset(assetId, State.NotHere);
+        assetMap[tokenId] = GameAsset(name, State.NotHere);
 
-        emit NewTokenAsset(to, tokenURI, assetId, tokenId);
+        emit NewTokenAsset(to, tokenURI, name, tokenId);
 
         return true;
     }
@@ -86,15 +95,16 @@ contract GameToken is ERC721, ERC721Metadata, MinterRole, ERC721Burnable, StateC
     // Token State Management
     ////    
 
-    // enum State { Here,        // 1
-    //              TransferOut, // 2
-    //              NotHere}     // 3
+    // enum State { NotHere,       // 0
+    //              TransferOut,   // 1
+    //              Here}          // 2
 
     // Transitions:
-        // 1 -> 2: owner
-        // 2 -> 1: authority (rollback)
-        // 2 -> 3: authority
-        // 3 -> 1: authority
+        // 2 -> 1: owner,   transferOut operation
+        // 1 -> 2: creator, abort       operation
+        // 1 -> 0: creator, accept      operation
+        // 0 -> 2: creator, commit      operation
+    
 
     /// @notice Set the token to TransferOut state
     /// @dev The asset changes state Here -> TransferOut. Callable by the asset owner
@@ -105,7 +115,7 @@ contract GameToken is ERC721, ERC721Metadata, MinterRole, ERC721Burnable, StateC
         require(assetMap[tokenId].state == State.Here, "GameToken: tokenId must be in Here state");
 
         assetMap[tokenId].state = State.TransferOut;
-        emit TransferOut(msg.sender, assetMap[tokenId].id, tokenId);
+        emit TransferOut(msg.sender, assetMap[tokenId].name, tokenId);
     }
 
     /// @notice Set the token to NotHere state
@@ -116,7 +126,7 @@ contract GameToken is ERC721, ERC721Metadata, MinterRole, ERC721Burnable, StateC
         require(assetMap[tokenId].state == State.TransferOut, "GameToken: tokenId must be in TransferOut state");
 
         assetMap[tokenId].state = State.NotHere;
-        emit NotHere(msg.sender, assetMap[tokenId].id, tokenId);
+        emit NotHere(msg.sender, assetMap[tokenId].name, tokenId);
     }
 
     /// @notice Set the token to Here state
@@ -127,7 +137,7 @@ contract GameToken is ERC721, ERC721Metadata, MinterRole, ERC721Burnable, StateC
         require(assetMap[tokenId].state == State.NotHere, "GameToken: tokenId must be in NotHere state");
 
         assetMap[tokenId].state = State.Here;
-        emit Here(msg.sender, assetMap[tokenId].id, tokenId);
+        emit Here(msg.sender, assetMap[tokenId].name, tokenId);
     }
 
     /// @notice Set the token to Here state, to use to handle errors
@@ -138,7 +148,7 @@ contract GameToken is ERC721, ERC721Metadata, MinterRole, ERC721Burnable, StateC
         require(assetMap[tokenId].state == State.TransferOut, "GameToken: tokenId must be in TransferOut state");
 
         assetMap[tokenId].state = State.Here;
-        emit Here(msg.sender, assetMap[tokenId].id, tokenId);
+        emit Here(msg.sender, assetMap[tokenId].name, tokenId);
     }
 
 
@@ -161,12 +171,12 @@ contract GameToken is ERC721, ERC721Metadata, MinterRole, ERC721Burnable, StateC
     // GETTERS
     ////
 
-    /// @notice Get the assetId paired to the token
+    /// @notice Get the name paired to the token
     /// @param tokenId The token id
-    /// @return { The paired assetId }
-    function getAssetIdOfToken(uint256 tokenId) public view returns(bytes32) {
+    /// @return { The paired name }
+    function getAssetNameOfToken(uint256 tokenId) public view returns(bytes32) {
 
-        return assetMap[tokenId].id;
+        return assetMap[tokenId].name;
     }
 
 

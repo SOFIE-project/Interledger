@@ -7,7 +7,7 @@ from web3 import Web3
 tokenContractFile = "truffle/build/contracts/GameToken.json"
 
 # Helper function to read Ethereum related options from configuration file
-def get_ethereum_data(parser, section):
+def parse_ethereum(parser, section):
     # Read data
     url = parser.get(section, 'url')
     port = parser.get(section, 'port')
@@ -37,22 +37,22 @@ def left_to_right_bridge(parser, left, right):
 
     # Left ledger
     if ledger_left == "ethereum":
-        (minter, contract, url, port) = get_ethereum_data(parser, left)
+        (minter, contract, url, port) = parse_ethereum(parser, left)
         # Create Initiator
         initiator = EthereumInitiator(minter, contract, url, port)
 
-    elif ledger_left == "OTHER":
-        print("WARNING: ledger type not supported yet")
+    else:
+        print(f"WARNING: ledger type {ledger_left} not supported yet")
         exit(1)
     
     # Right ledger
     if ledger_right == "ethereum":
-        (minter, contract, url, port) = get_ethereum_data(parser, right)
+        (minter, contract, url, port) = parse_ethereum(parser, right)
         # Create Responder
         responder = EthereumResponder(minter, contract, url, port)
 
-    elif ledger_right == "OTHER":
-        print("WARNING: ledger type not supported yet")
+    else:
+        print(f"WARNING: ledger type {ledger_right} not supported yet")
         exit(1)
 
     return (initiator, responder)
@@ -68,22 +68,22 @@ def right_to_left_bridge(parser, left, right):
     
     # Right ledger
     if ledger_right == "ethereum":
-        (minter, contract, url, port) = get_ethereum_data(parser, right)
+        (minter, contract, url, port) = parse_ethereum(parser, right)
         # Create Initiator
         initiator = EthereumInitiator(minter, contract, url, port)
 
     else :
-        print("WARNING: ledger type not supported yet")
+        print(f"WARNING: ledger type {ledger_right} not supported yet")
         exit(1)
 
     # Left ledger
     if ledger_left == "ethereum":
-        (minter, contract, url, port) = get_ethereum_data(parser, left)
+        (minter, contract, url, port) = parse_ethereum(parser, left)
         # Create Responder
         responder = EthereumResponder(minter, contract, url, port)
 
     else :
-        print("WARNING: ledger type not supported yet")
+        print(f"WARNING: ledger type {ledger_left} not supported yet")
         exit(1)
 
     return (initiator, responder)
@@ -132,8 +132,9 @@ def main():
         interledger_right_to_left = Interledger(initiator_rl, responder_rl)
 
     else:
-        print("WARNING: supported 'direction' values are 'left-to-right', 'right-to-left' and 'both'")
-
+        print("WARNING: supported 'direction' values are 'left-to-right', 'right-to-left' or 'both'")
+        print("Check your configuration file")
+        exit(1)
 
     # Init Interledger(s)
     task = None
