@@ -4,13 +4,25 @@ const GameToken = artifacts.require("GameToken");
 const fs = require("fs");
 const ini = require("ini");
 
+/**
+ * Migration script
+ * 
+ * Network development:
+ *  - deploy the token contract
+ * 
+ * Networks ganache8545 and ganache7545
+ *  - deploy the token contract
+ *  - update the configuration file ../local-config.cfg
+ * 
+ * Otherwise:
+ *  - deploy the token contract
+ */
 module.exports = function(deployer, network, accounts) {
 
   deployer.then(async () => {
 
     alice = accounts[0];
 
-    // There is no dev anymore
     if(network == "development") {
 
       await deployer.deploy(Migrations);

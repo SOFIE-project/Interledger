@@ -95,8 +95,8 @@ async def test_interledger_with_two_ethereum():
 
     await asyncio.sleep(1) # Simulate Interledger running
 
-    assert token_instance_B.functions.getStateOfToken(tokenId).call() == 0
-    assert token_instance_A.functions.getStateOfToken(tokenId).call() == 2
+    assert token_instance_B.functions.getStateOfToken(tokenId).call() == 2
+    assert token_instance_A.functions.getStateOfToken(tokenId).call() == 0
     assert len(interledger.transfers_sent) == 1
     assert len(interledger.results_commit) == 1
 
@@ -123,8 +123,8 @@ async def test_interledger_with_two_ethereum():
 
     await asyncio.sleep(1) # Simulate Interledger running
 
-    assert token_instance_A.functions.getStateOfToken(tokenId).call() == 0
-    assert token_instance_B.functions.getStateOfToken(tokenId).call() == 2
+    assert token_instance_A.functions.getStateOfToken(tokenId).call() == 2
+    assert token_instance_B.functions.getStateOfToken(tokenId).call() == 0
     assert len(interledger.transfers_sent) == 1
     assert len(interledger.results_commit) == 1
 

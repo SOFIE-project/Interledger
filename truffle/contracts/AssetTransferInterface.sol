@@ -3,17 +3,17 @@ pragma solidity ^0.5.0;
 /**
 * Abstract contract exposing the methods, data structure and events to manage state transition for Interledger protocol in Ethereum.
 */
-contract StateContract {
+contract AssetTransferInterface {
     // States
-    enum State { Here,        // 1
-                 TransferOut, // 2
-                 NotHere}     // 3
+    enum State { NotHere,       // 0
+                 TransferOut,   // 1
+                 Here}          // 2
 
     // Transitions:
-        // 1 -> 2: owner
-        // 2 -> 1: authority
-        // 2 -> 3: authority
-        // 3 -> 1: authority
+        // 2 -> 1: owner,   transferOut operation
+        // 1 -> 2: creator, abort       operation
+        // 1 -> 0: creator, accept      operation
+        // 0 -> 2: creator, commit      operation
     
     event Here(address from, bytes32 data, uint256 id);
     event TransferOut(address from, bytes32 data, uint256 id);

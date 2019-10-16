@@ -9,42 +9,36 @@ import json
 # whose connection data are provided by a configuration file, 
 # a main argument of this script
 
-#
-#CLI commands
-#
+LEFT_LABEL = "left"
+RIGHT_LABEL = "right"
+CONTRACT_PATH = "./truffle/build/contracts/GameToken.json"
 
-help_cmds = """Available commands:
-- mint <tokenId: int> <tokenURI: str> <assetId: str>
-- transfer_out <direction> <tokenId: int>
-- state_of <tokenId>
-- set_accounts
-- accounts
-- help
-- quit"""
-help_directions = """Available <direction> directions:
-- left
-- right"""
+HELP_CMDS = """Available commands:
+    - mint <tokenId: int> <tokenURI: str> <assetName: str>
+    - transfer_out <direction> <tokenId: int>
+    - state_of <tokenId>
+    - help
+    - quit"""
+HELP_DIRECTIONS = """Available directions <direction>:
+    - left
+    - right"""
 
 #
-# Printing functions
+# Print functions
 #
 
 def print_help():
     # Print the CLI commands
-    print("------")
-    print(f"{help_cmds}\n{help_directions}")
-    print("------")
-
-
-def print_accounts(ledger1, ledger2):
-    # Print the accounts available in each ledger
-
-    print(f"Accounts at {ledger1['endpoint']}:")
-    for (index, account) in enumerate(ledger1['web3'].eth.accounts):
-        print(f"{index}) {account}")
     print()
-    print(f"Accounts at {ledger2['endpoint']}:")
-    for (index, account) in enumerate(ledger2['web3'].eth.accounts):
+    print(f"{HELP_CMDS}\n{HELP_DIRECTIONS}")
+    print()
+
+
+def print_accounts(ledger):
+    # Print the accounts available in a ledger
+
+    print(f"Accounts at {ledger['endpoint']}:")
+    for (index, account) in enumerate(ledger['web3'].eth.accounts):
         print(f"{index}) {account}")
 
 
@@ -53,8 +47,8 @@ def print_user_accounts(ledgers):
 
     print()
     print(f"""Your accounts:
-    Left ledger, {ledgers['left']['endpoint']}: {ledgers['left']['user']}
-    Right ledger, {ledgers['right']['endpoint']}: {ledgers['right']['user']}
+    Left ledger, {ledgers[LEFT_LABEL]['endpoint']}: {ledgers[LEFT_LABEL]['user']}
+    Right ledger, {ledgers[RIGHT_LABEL]['endpoint']}: {ledgers[RIGHT_LABEL]['user']}
     """)
 
 
@@ -73,59 +67,54 @@ def read_contract(path):
 def init_web3(parser, section, label):
     # Initialize web3 for a ledger and return a dictionary with the useful info for that ledger
 
-    ledger = dict()
-    url = parser.get(section, 'url')
-    port = parser.get(section, 'port')
-    endpoint = f"{url}:{port}"
-    abi, bytecode = read_contract("./truffle/build/contracts/GameToken.json")
-    
-    ledger["web3"] = Web3(Web3.HTTPProvider(endpoint))
+    endpoint = f"{parser.get(section, 'url')}:{parser.get(section, 'port')}"
+    web3 = Web3(Web3.HTTPProvider(endpoint))
 
-    if ledger["web3"].isConnected():
+    if web3.isConnected():
+
         print(f"OK - {label}: connected to {endpoint}")
+        abi, bytecode = read_contract(CONTRACT_PATH)
+    
+        ledger = dict()
+        ledger["web3"] = web3
+        ledger["endpoint"] = endpoint
+        ledger["minter"] = parser.get(section, "minter")
+        ledger["user"] = parser.get(section, 'user')
+        ledger["contract_address"] = parser.get(section, "contract")
+        ledger["contract"] = ledger["web3"].eth.contract(abi=abi, address=ledger["contract_address"])
+
+        return ledger
     else:
         print("WARNING Not connected to : ", endpoint)
         exit(1)
 
-    ledger["endpoint"] = endpoint
-    ledger["minter"] = parser.get(section, "minter")
-    ledger["user"] = parser.get(section, 'user')
-    ledger["contract_address"] = parser.get(section, "contract")
-    ledger["contract"] = ledger["web3"].eth.contract(abi=abi, address=ledger["contract_address"])
-
-    return ledger
 
 
 def select_account_from(accounts):
     # Print and select an account from those provided a ledger 
+    # Loop until the index is correct
 
     for (index, account) in enumerate(accounts):
         print(f"{index}) {account}")
 
-    print("- Type the index: ")
-    idx = int(input(")> "))
+    idx = int(input("Type the index in 0-9)> "))
 
     while idx not in range(0, len(accounts)):
-
-        print("Wrong index")
-        idx = int(input(")> "))
+        print("Wrong index, must be in 0-9")
+        idx = int(input("Type the index in 0-9)> "))
 
     return accounts[idx]
     
-
-def select_accounts(ledgers):
-    # For both ledgers call select_accoun_from and store the chosed account
+def select_account(ledger):
+    # Set the user account for the input ledger
     # is necessary to call web3.toCheckssumAddress, otherwise web3 will raise errors
-    
-    print(f"- Set default account in ledger left: {ledgers['left']['endpoint']}")
-    account1 = select_account_from(ledgers['left']["web3"].eth.accounts)
-    ledgers["left"]["user"] = ledgers['left']["web3"].toChecksumAddress(account1)
-    print()
-    print(f"- Set default account in ledger right: {ledgers['right']['endpoint']}")
-    account1 = select_account_from(ledgers['right']["web3"].eth.accounts)
-    ledgers["right"]["user"] = ledgers['right']["web3"].toChecksumAddress(account1)
 
-    return ledgers
+    print(f"- Set default account in ledger left: {ledger['endpoint']}")
+    account1 = select_account_from(ledger["web3"].eth.accounts)
+    ledger["user"] = ledger["web3"].toChecksumAddress(account1)
+    print()
+
+    return ledger
 
 
 
@@ -144,59 +133,66 @@ def main():
 
 
     # Read config file and create ledgers
+    print("- Connecting to ledgers")
     parser = ConfigParser()
     parser.read(argv[Cli_input.CONFIG.value])
-    left = parser.get('service', 'left')
-    right = parser.get('service', 'right')
+    left_section = parser.get('service', LEFT_LABEL)
+    right_section = parser.get('service', RIGHT_LABEL)
 
-    print("- Connecting to ledgers")
     ledgers = dict()
-    ledgers["left"] = init_web3(parser, left, "left")
-    ledgers["right"] = init_web3(parser, right, "right")
-    print()
+    ledgers[LEFT_LABEL] = init_web3(parser, left_section, LEFT_LABEL)
+    ledgers[RIGHT_LABEL] = init_web3(parser, right_section, RIGHT_LABEL)
 
-    # Set default accounts ledger 1 and ledger 2
-    ledgers = select_accounts(ledgers)
+    # Set user accounts ledger 1 and ledger 2
+    print()
+    ledgers[LEFT_LABEL] = select_account(ledgers[LEFT_LABEL])
+    ledgers[RIGHT_LABEL] = select_account(ledgers[RIGHT_LABEL])
     
     # Start loop 
     print_user_accounts(ledgers)
-    print("------")
     print_help()
 
     while True:
 
-        print("""Type a command:""")
-        cmd = input(")> ")
+        cmd = input("Type a command)> ")
         
         keywords = cmd.split()
         cmd = keywords[0]
         
         if cmd == "mint":
+            
+            if len(keywords) is not 4:
+                print("mint command needs 3 parameters")
+                continue
+
             tokenId = int(keywords[1])
             tokenURI = keywords[2]
-            assetId = keywords[3]
-            to_left = ledgers["left"]["user"]
-            to_right = ledgers["right"]["user"]
+            assetName = keywords[3]
+            to_left = ledgers[LEFT_LABEL]["user"]
+            to_right = ledgers[RIGHT_LABEL]["user"]
             
 
-            # Create token in left and right ledgers
-            ledger = ledgers["left"]
-            assetIdBytes = ledger["web3"].toBytes(text=assetId)
-            tx = ledger["contract"].functions.mint(to_left, tokenId, tokenURI, assetIdBytes).transact({"from": ledger["minter"]})
+            # Create token
+                # Left ledger
+            ledger = ledgers[LEFT_LABEL]
+            assetNameBytes = ledger["web3"].toBytes(text=assetName)
+            tx = ledger["contract"].functions.mint(to_left, tokenId, tokenURI, assetNameBytes).transact({"from": ledger["minter"]})
             rcpt = ledger["web3"].eth.waitForTransactionReceipt(tx)
 
-            ledger = ledgers["right"]
-            tx = ledger["contract"].functions.mint(to_right, tokenId, tokenURI, assetIdBytes).transact({"from": ledger["minter"]})
+                # Right ledger
+            ledger = ledgers[RIGHT_LABEL]
+            tx = ledger["contract"].functions.mint(to_right, tokenId, tokenURI, assetNameBytes).transact({"from": ledger["minter"]})
             rcpt = ledger["web3"].eth.waitForTransactionReceipt(tx)
 
-            # activate the token (by default, it is not active) in ledger right
+            # activate the token in ledger right (by default, it is not active)
+                # Simulation goals
             tx = ledger["contract"].functions.accept(tokenId).transact({"from": ledger["minter"]})
             rcpt = ledger["web3"].eth.waitForTransactionReceipt(tx)
 
             print(f"""Token info:
             - tokenId: {tokenId}
             - URI: {tokenURI}
-            - assetId: {assetId}
+            - assetName: {assetName}
             - owner_left: {to_left}
             - owner_right: {to_right}
             - token active in ledger *right*
@@ -204,11 +200,14 @@ def main():
 
 
         elif cmd == "transfer_out":
+
+            if len(keywords) is not 3:
+                print("transfer_out command needs 2 parameters")
+                continue
+
             ledger_id = keywords[1]
             tokenId = int(keywords[2])
             ledger = ledgers[ledger_id]
-
-            print(ledger["user"])
 
             tx = ledger["contract"].functions.transferOut(tokenId).transact({"from": ledger["user"]})
             rcpt = ledger["web3"].eth.waitForTransactionReceipt(tx)
@@ -216,44 +215,31 @@ def main():
             # Interledger will work in this step ...
 
         elif cmd == "state_of":
+
+            if len(keywords) is not 2:
+                print("state_of command needs 1 parameter")
+                continue
+
             tokenId = int(keywords[1])         
 
-            state_left = ledgers["left"]["contract"].functions.getStateOfToken(tokenId).call()
-            state_right = ledgers["right"]["contract"].functions.getStateOfToken(tokenId).call()
+            # Read state from ledger
+            state_left = ledgers[LEFT_LABEL]["contract"].functions.getStateOfToken(tokenId).call()
+            state_right = ledgers[RIGHT_LABEL]["contract"].functions.getStateOfToken(tokenId).call()
 
+            # Print
             statesMap = {
-                0: "Here",
+                0: "Not Here",
                 1: "Transfer Out",
-                2: "Not Here"
+                2: "Here"
             }
-
-            if state_left == 0 and state_right == 0:
-                # TODO FIXME from solidity default non existing value is 0
-                # so not existing assets return state = 0, which is "here"
-                # FIXME also in solidity
-                state_left = 2
-                state_right = 2
-
 
             print(f"State of {tokenId} in ledger left: *{statesMap[state_left]}*")
             print(f"State of {tokenId} in ledger right: *{statesMap[state_right]}*")
 
 
         elif cmd == "help":
-            print("------")
             print_user_accounts(ledgers)
             print_help()
-
-
-        elif cmd == "accounts":
-            print_accounts(ledgers["left"], ledgers["right"])
-
-
-        elif cmd == "set_accounts":
-            ledgers = select_accounts(ledgers)
-            print("------")
-            print_user_accounts(ledgers)
-            print("------")
 
 
         elif cmd == "quit":
@@ -262,7 +248,6 @@ def main():
 
         else:
             print("Invalid command")
-
 
 
 if __name__ == "__main__":

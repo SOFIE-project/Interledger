@@ -25,6 +25,10 @@ contract("GameToken", accounts => {
 
     const objects = [object1, object2, object3];
 
+    const NOT_HERE = 0;
+    const TRANSFER_OUT = 1;
+    const HERE = 2;
+
     describe("Testing the lifecycle functions", function() {
 
         it("Should mint a new token", async() => {
@@ -34,8 +38,8 @@ contract("GameToken", accounts => {
     
             await token.mint(bob, tokenId, object1.uri, web3.utils.fromUtf8(object1.id));
             assert.equal(await token.balanceOf(bob), 1, "Bob should have 1 token");
-            assert.equal(web3.utils.toUtf8(await token.getAssetIdOfToken(tokenId)), object1.id, "Token " + tokenId + " should be paired to assetId " + object1.id);
-            assert.equal(await token.getStateOfToken(tokenId), 2, "token should have state 2: NotHere");
+            assert.equal(web3.utils.toUtf8(await token.getAssetNameOfToken(tokenId)), object1.id, "Token " + tokenId + " should be paired to assetId " + object1.id);
+            assert.equal(await token.getStateOfToken(tokenId), NOT_HERE, "token should have state "+NOT_HERE+": NotHere");
         });
             
         it("Should burn a minted token", async() => {
@@ -44,7 +48,7 @@ contract("GameToken", accounts => {
     
             await token.burn(tokenId, {from: bob});
             assert.equal(await token.balanceOf(bob), 0, "Bob should have 0 tokens");
-            assert.equal(await token.getAssetIdOfToken(tokenId), 0x0, "Token " + tokenId + " should be paired to assetId " + object1.id);
+            assert.equal(await token.getAssetNameOfToken(tokenId), 0x0, "Token " + tokenId + " should be paired to assetId " + object1.id);
         });
     });
 
@@ -58,7 +62,7 @@ contract("GameToken", accounts => {
             
             // The game puts the token Here
             await token.accept(tokenId, {from: alice});
-            assert.equal(await token.getStateOfToken(tokenId), 0, "token should have state 0: Here");
+            assert.equal(await token.getStateOfToken(tokenId), HERE, "token should have state "+HERE+": Here");
         });
     
         it("Bob should tranfer its token to Carl", async() => {
@@ -68,7 +72,7 @@ contract("GameToken", accounts => {
             // Transfer the token
             await token.transferFrom(bob, carl, tokenId, {from: bob});
             assert.equal(await token.ownerOf(tokenId), carl, "Carl should have received a token from Bob");
-            assert.equal(await token.getStateOfToken(tokenId), 0, "token " + tokenId + " should have state 0: Here");
+            assert.equal(await token.getStateOfToken(tokenId), HERE, "token " + tokenId + " should have state "+HERE+": Here");
        });
     
        it("Carl wishes to use the token " + tokenId + " in the game", async() => {
@@ -77,7 +81,7 @@ contract("GameToken", accounts => {
     
             // Carl
             await token.transferOut(tokenId, {from: carl});
-            assert.equal(await token.getStateOfToken(tokenId), 1, "token " + tokenId + " should have state 1: WantToUse");
+            assert.equal(await token.getStateOfToken(tokenId), TRANSFER_OUT, "token " + tokenId + " should have state "+TRANSFER_OUT+": TransferOut");
         });
 
         it("Should NOT be possible to trade the token " + tokenId + " because it is not in Here state", async() => {
@@ -96,7 +100,7 @@ contract("GameToken", accounts => {
     
             // Game authority
             await token.commit(tokenId, {from: alice});
-            assert.equal(await token.getStateOfToken(tokenId), 2, "token should have state 2: NotHere");
+            assert.equal(await token.getStateOfToken(tokenId), NOT_HERE, "token should have state "+NOT_HERE+": NotHere");
         });
 
         it("Should NOT be possible to trade the token " + tokenId + " because it is not in Here state", async() => {
@@ -119,7 +123,7 @@ contract("GameToken", accounts => {
     
             await token.burn(tokenId, {from: carl});
             assert.equal(await token.balanceOf(carl), 0, "Bob should have 0 tokens");
-            assert.equal(await token.getAssetIdOfToken(tokenId), 0x0, "Token " + tokenId + " should be empty: 0x0");
+            assert.equal(await token.getAssetNameOfToken(tokenId), 0x0, "Token " + tokenId + " should be empty: 0x0");
         });
     });
 

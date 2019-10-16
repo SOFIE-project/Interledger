@@ -14,6 +14,7 @@ In this file we introduce the asset transfer protocol provided by the SOFIE Inte
 - [Component overview](#component-overview)
     - [Initiator](#initiator)
     - [Responder](#responder)
+    - [The Transfer object](#the-transfer-object)
     - [Interledger](#interledger)
 
 ## State machine based protocol
@@ -86,7 +87,7 @@ The user invokes the ``transferOut(assetId)`` operation of the smart contract.
 this switches the state of *assetId* from ``NotHere`` to ``Here`` in ledgerB. 
 After that, interledger de-activates *assetId* by switching its state from ``TransferOut`` to ``NotHere`` by means of the ``commit()`` operation in ledger A. 
 These two operations are atomic: either both or none are finalized.
-At each step, Interledger preserves the **global invariant** as introduced in [global state section](#global-asset-states).
+At each step, Interledger preserves the **global invariant** as introduced in [Interledger state view section](#interledger-state-view).
 
 **Postcondition:** ``state(assetId) in ledger A = NotHere`` **&&** ``state(assetId) in ledger B = Here``
 
@@ -133,6 +134,14 @@ The only function provided by Responder is:
 
 * ``receive_transfer``: receives a transfer request and initiate the protocol by calling the ``accept()`` function;
 
+### The Transfer object
+
+The ``Transfer`` object is a data structure which contains the data necessary to perform the asset transfer protocol for a particular asset.
+When an event is caught, the Initiator creates a Transfer object and this objects will be modified and processed by the protocol until the asset transfer it handles will be finalized or aborted. Figure in the [Interldeger](#interledger) section shows the flow of the Transfer object between the Initiator and the Responder. 
+A Transfer object includes a python ``future`` object which stores the asynchrounous call to the ``Responder.receive_transfers()`` which triggers the protocol ``accept()`` function. As soon this call terminates and the future object has a result:
+- if it is positive, i.e. the ``accept()`` transaction was successfull, the Interledger will call the ``Initiator.commit_transfer()`` because the state of the asset changed;
+- otherwise, the state of the asset did not chang and Interledger will call the ``Initiator.abort_transfer()`` to go back to the initial state.
+
 ### Interledger
 
 The Interledger module creates a bridge from a ledger A to a ledger B by instantiating a Initiator listening for events coming from ledger A and executing transations to ledger B by instantiating a Responder.
@@ -167,11 +176,11 @@ Example of the loop step:
 
 The figure below shows a visual representation of a transfer between ledgers:
 - The Initiator starts listening for ``transferOut`` operations from LedgerA;
-- When the Initiator catches one, it builds a ``transfer`` to send to the Responder;
+- When the Initiator catches one, it builds a ``Transfer`` to send to the Responder;
 - The Responder calls the ``accept()`` function to set the presence of that asset in LedgerB;
-- After receiving positive respose from LedgerB, the Responder sets that ``transfer`` as "sent";
+- After receiving positive respose from LedgerB, the Responder sets that ``Transfer`` as "sent";
 - The Initiator loops over the pending transfers and, if a transfer has label "sent", finalize the protocol by calling the ``commit()`` function in LedgerA. 
 
-The red and blue colors identify the caller of the transaction to a specific ledger, the caller is responsible for paying the transaction fee.
+The red and blue colors identify the caller of the transaction to a specific ledger: the caller is responsible for paying the transaction fee.
 
 ![Protocol](../../imgs/Interledger-Protocol.png)

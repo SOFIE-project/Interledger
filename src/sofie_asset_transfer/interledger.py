@@ -60,6 +60,9 @@ class Interledger(object):
     async def receive_transfer(self):
         """Receive the list of transfers from the Initiator. This operation blocks until it receives at least one transfer.
         """
+        # The user has already called transferOut()
+        # State of the asset:
+            # (Here | Not Here) -> (TransferOut | Not Here)
         transfers = await self.initiator.get_transfers()
         if len(transfers) > 0:
             self.transfers.extend(transfers)
@@ -75,6 +78,9 @@ class Interledger(object):
         for t in self.transfers:
             if t.state == State.READY:
                 t.state = State.SENT
+                # call accept()
+                # State of the asset:
+                    # (TransferOut | Not Here) -> (TransferOut | Here)
                 t.future = asyncio.ensure_future(self.responder.receive_transfer(t))
                 self.transfers_sent.append(t)
                 self.pending += 1
@@ -104,9 +110,16 @@ class Interledger(object):
             if t.state == State.COMPLETED:
                 
                 if t.result:
+                    # accept() goes well
+                    # State of the asset:
+                        # (TransferOut | Here) -> (Not Here | Here)
                     asyncio.ensure_future(self.initiator.commit_transfer(t))
                     self.results_commit.append(t.result)
                 else:
+                    # Error during accept() from Responder
+                        # accept() should not have changed the state of the Asset
+                    # State of the asset:
+                        # (TransferOut | Not Here) -> (Here | Not Here)
                     asyncio.ensure_future(self.initiator.abort_transfer(t))
                     self.results_abort.append(t.result)
 
