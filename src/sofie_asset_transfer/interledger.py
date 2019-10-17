@@ -12,8 +12,8 @@ class State(Enum):
     """
     READY = 1
     SENT = 2
-    COMPLETED = 3
-    PROCESSED = 4
+    RESPONDED = 3
+    FINALIZED = 4
 
 
 class Transfer(object):
@@ -55,8 +55,24 @@ class Interledger(object):
         """
         self.keep_running = False
 
-        
-    # blocking, trigger
+    def cleanlist(self, _list: List, _state: State):
+        """Cleanup elements with a particular state from an input list 
+        """
+        return [t for t in _list if t.state is not _state]
+
+    def cleanup(self):
+        """Cleanup the FINALIZED transfers from Interledger transfer arrays 
+        """
+        tmp = self.cleanlist(self.transfers, State.FINALIZED)
+        self.transfers.clear()
+        self.transfers = tmp
+
+        tmp = self.cleanlist(self.transfers_sent, State.FINALIZED)
+        self.transfers_sent.clear()
+        self.transfers_sent = tmp
+
+
+    # Trigger
     async def receive_transfer(self):
         """Receive the list of transfers from the Initiator. This operation blocks until it receives at least one transfer.
         """
@@ -70,7 +86,7 @@ class Interledger(object):
         return len(transfers)
 
  
-    # non blocking, action
+    # Action
     async def send_transfer(self):
         """Forward the stored transfers to the Responder.
         """
@@ -86,28 +102,28 @@ class Interledger(object):
                 self.pending += 1
 
 
-    # blocking, trigger
+    # Trigger
     async def transfer_result(self):
-        """Store the results of the transfers sent to the Responder. This operation blocks until at least one transfer has been completed.
+        """Store the results of the transfers sent to the Responder. This operation blocks until at least one future has been completed.
         """
 
         futures = [t.future for t in self.transfers_sent]
         await asyncio.wait(futures, return_when=asyncio.FIRST_COMPLETED)
 
         for t in self.transfers_sent:
-            if t.state == State.SENT and not t.state == State.COMPLETED and t.future.done():
+            if t.state == State.SENT and not t.state == State.RESPONDED and t.future.done():
                 t.result = t.future.result()
-                t.state = State.COMPLETED
+                t.state = State.RESPONDED
 
 
-    # non blocking: action
+    # Action
     async def process_result(self):
         """Process the result of the responder: trigger the commit() or the abort() operation of the Initiator to complete the protocol.
         """
 
         for t in self.transfers_sent:
 
-            if t.state == State.COMPLETED:
+            if t.state == State.RESPONDED:
                 
                 if t.result:
                     # accept() goes well
@@ -123,7 +139,7 @@ class Interledger(object):
                     asyncio.ensure_future(self.initiator.abort_transfer(t))
                     self.results_abort.append(t.result)
 
-                t.state = State.PROCESSED
+                t.state = State.FINALIZED
                 self.pending -= 1
 
 
@@ -132,6 +148,7 @@ class Interledger(object):
         Wait for new transfers from the Initiator, forward them to the Responder and finalize the protocol with the Intiator.
         """
  
+        # Triggers
         while self.keep_running:
             
             receive = asyncio.ensure_future(self.receive_transfer())
@@ -142,11 +159,14 @@ class Interledger(object):
                 result = asyncio.ensure_future(self.transfer_result())
                 await asyncio.wait([receive, result], return_when=asyncio.FIRST_COMPLETED)
 
+            # Actions
             send = asyncio.ensure_future(self.send_transfer())
             process = asyncio.ensure_future(self.process_result())
 
             await send
             await process
+
+            self.cleanup()
 
 
         # TODO Add some closing procedure
@@ -201,7 +221,7 @@ class StateInterledger(Interledger):
             t = Transfer()
             t.data = {}
             t.data["assetId"] = i
-            t.state = State.COMPLETED # accept() already been called by Responder
+            t.state = State.RESPONDED # accept() already been called by Responder
             t.result = True # needs to commit() this uncomplted transfer
             new_transfers.append(t)
         # new_transfers = [Transfer() for i in ids]

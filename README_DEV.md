@@ -20,6 +20,8 @@ The current directory contains the project of the Interledger component for SOFI
 
 - The `doc` folder contains restructured text documentation for a sphinx project. _Last update: beginning of September 2019, demo in Terni._
 
+- The `images` are made with the Google draw.io tool and can be found in the `imgs` directory. Moreover, the images and the xml file to generate them can be found in the SOFIE Google Drive under */WP2 - Architecture/Framework Components/Interledger*.
+
 ## Start working with it
 
 Read the README. But here a guideline:
@@ -41,7 +43,8 @@ Read the README. But here a guideline:
 ## What's next
 
 - The `sofie_asset_transfer.interledger.Interledger` class:
-    - [ ] The class uses two lists, `transfers` and `transfers_sent`, which iterates over continuosly, without never cleaning them when a transfer is finally processed (it has its state set to PROCESSED).
+    - [X] The class uses two lists, `transfers` and `transfers_sent`, which iterates over continuosly, without never cleaning them when a transfer is finalized (it has its state set to FINALIZED).
+        - [ ] Is it needed a more sophisticated data structure instead of lists?
     - [ ] There is no closing procedure in case Interledger needs to be stopped (e.g. finish to process the remaining transfers or ignore them).
     - [ ] Since the transactions with a ledger may take a while (e.g. Ethereum avg transaction time is 13s), there is no timeout exception if the transaction takes to long to be processed.
     - [ ] No counter-measure is taken in case of network failure: Interledger may simply stop working with an Exception.
