@@ -43,7 +43,7 @@ def test_interledger_pending_transfers_sent():
 
                 assert len(interledger.transfers_sent) == 1
                 assert interledger.transfers_sent[0].data["assetId"] == 123
-                assert interledger.transfers_sent[0].state == State.COMPLETED
+                assert interledger.transfers_sent[0].state == State.RESPONDED
 
 #
 # Test run
@@ -80,17 +80,19 @@ async def test_interledger_run_with_restore_ready():
             with patch(init+".get_transfers", return_value=get_future) as mock_get_transfers:
                 with patch(resp+".receive_transfer", return_value=receive_future) as mock_receive_transfer:
                     with patch(init+".commit_transfer", return_value=commit_future) as mock_commit:
+                        with patch(base+".interledger.Interledger.cleanup") as mock_cleanup:
+                            # mock cleanup to check the transfer reaches the end
 
-                        time = 1
-                        task = asyncio.ensure_future(interledger.run())
-                        await asyncio.sleep(time)
-                        interledger.stop()
-                        await task
+                            time = 1
+                            task = asyncio.ensure_future(interledger.run())
+                            await asyncio.sleep(time)
+                            interledger.stop()
+                            await task
 
-                        assert len(interledger.transfers) == 1
-                        assert len(interledger.transfers_sent) == 1
-                        assert len(interledger.results_commit) == 1
-                        assert interledger.pending == 0
+                            assert len(interledger.transfers) == 1
+                            assert len(interledger.transfers_sent) == 1
+                            assert len(interledger.results_commit) == 1
+                            assert interledger.pending == 0
 
 
 @pytest.mark.asyncio
@@ -104,7 +106,7 @@ async def test_interledger_run_with_restore_sent():
     t = Transfer()
     t.data = {}
     t.data["assetId"] = 123
-    t.state = State.COMPLETED
+    t.state = State.RESPONDED
     t.future = asyncio.Future()
     t.future.set_result(True)
     t.result = True
@@ -126,13 +128,15 @@ async def test_interledger_run_with_restore_sent():
             with patch(init+".get_transfers", return_value=get_future) as mock_get_transfers:
                 with patch(resp+".receive_transfer", return_value=receive_future) as mock_receive_transfer:
                     with patch(init+".commit_transfer", return_value=commit_future) as mock_commit:
+                        with patch(base+".interledger.Interledger.cleanup") as mock_cleanup:
+                            # mock cleanup to check the transfer reaches the end
 
-                        time = 1
-                        task = asyncio.ensure_future(interledger.run())
-                        await asyncio.sleep(time)
-                        interledger.stop()
-                        await task
+                            time = 1
+                            task = asyncio.ensure_future(interledger.run())
+                            await asyncio.sleep(time)
+                            interledger.stop()
+                            await task
 
-                        assert len(interledger.transfers_sent) == 1
-                        assert len(interledger.results_commit) == 1
-                        assert interledger.pending == 0
+                            assert len(interledger.transfers_sent) == 1
+                            assert len(interledger.results_commit) == 1
+                            assert interledger.pending == 0

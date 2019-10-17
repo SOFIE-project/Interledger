@@ -79,59 +79,64 @@ async def test_interledger_with_two_ethereum():
 
     print("Test setup ready")
 
-    # Create interledger with a bridge in direction from A to B
-    print("Building Interledger bridge A -> B")
-    inititator = EthereumInitiator(contract_minter_A, token_instance_A, url, port=portA)
-    responder = EthereumResponder(contract_minter_B, token_instance_B, url, port=portB)
-    interledger = Interledger(inititator, responder)
+    with patch("sofie_asset_transfer.interledger.Interledger.cleanup") as mock_cleanup:
+        # mock cleanup to check the transfer reaches the end
 
-    print("Creating Intelredger run coroutine")
-    
+        # Create interledger with a bridge in direction from A to B
+        print("Building Interledger bridge A -> B")
+        inititator = EthereumInitiator(contract_minter_A, token_instance_A, url, port=portA)
+        responder = EthereumResponder(contract_minter_B, token_instance_B, url, port=portB)
+        interledger = Interledger(inititator, responder)
 
-    interledger_task = asyncio.ensure_future(interledger.run())
+        print("Creating Intelredger run coroutine")
+        
 
-    print("A smart contract call in ledger A marks the token in 'TransferOut'")
-    token_instance_A.functions.transferOut(tokenId).transact({'from': bob_A})
+        interledger_task = asyncio.ensure_future(interledger.run())
 
-    await asyncio.sleep(1) # Simulate Interledger running
+        print("A smart contract call in ledger A marks the token in 'TransferOut'")
+        token_instance_A.functions.transferOut(tokenId).transact({'from': bob_A})
 
-    assert token_instance_B.functions.getStateOfToken(tokenId).call() == 2
-    assert token_instance_A.functions.getStateOfToken(tokenId).call() == 0
-    assert len(interledger.transfers_sent) == 1
-    assert len(interledger.results_commit) == 1
+        await asyncio.sleep(1) # Simulate Interledger running
 
-    print("Stopping Interledger run coroutine")
-    interledger.stop()
-    await interledger_task
+        assert token_instance_B.functions.getStateOfToken(tokenId).call() == 2
+        assert token_instance_A.functions.getStateOfToken(tokenId).call() == 0
+        assert len(interledger.transfers) == 1
+        assert len(interledger.transfers_sent) == 1
+        assert len(interledger.results_commit) == 1
 
-
-    print("*----------*")
-
-
-    print("Building Interledger bridge B -> A")
-    inititator = EthereumInitiator(contract_minter_B, token_instance_B, url, port=portB)
-    responder = EthereumResponder(contract_minter_A, token_instance_A, url, port=portA)
-    interledger = Interledger(inititator, responder)
-
-    print("Creating Intelredger run coroutine")
-
-    interledger_task = asyncio.ensure_future(interledger.run())
-
-    print("A smart contract call in ledger B marks the token in 'TransferOut'")
-
-    token_instance_B.functions.transferOut(tokenId).transact({'from': bob_B})
-
-    await asyncio.sleep(1) # Simulate Interledger running
-
-    assert token_instance_A.functions.getStateOfToken(tokenId).call() == 2
-    assert token_instance_B.functions.getStateOfToken(tokenId).call() == 0
-    assert len(interledger.transfers_sent) == 1
-    assert len(interledger.results_commit) == 1
+        print("Stopping Interledger run coroutine")
+        interledger.stop()
+        await interledger_task
 
 
-    print("Stopping Interledger run coroutine")
-    interledger.stop()
-    await interledger_task
+        print("*----------*")
+
+
+        print("Building Interledger bridge B -> A")
+        inititator = EthereumInitiator(contract_minter_B, token_instance_B, url, port=portB)
+        responder = EthereumResponder(contract_minter_A, token_instance_A, url, port=portA)
+        interledger = Interledger(inititator, responder)
+
+        print("Creating Intelredger run coroutine")
+
+        interledger_task = asyncio.ensure_future(interledger.run())
+
+        print("A smart contract call in ledger B marks the token in 'TransferOut'")
+
+        token_instance_B.functions.transferOut(tokenId).transact({'from': bob_B})
+
+        await asyncio.sleep(1) # Simulate Interledger running
+
+        assert token_instance_A.functions.getStateOfToken(tokenId).call() == 2
+        assert token_instance_B.functions.getStateOfToken(tokenId).call() == 0
+        assert len(interledger.transfers) == 1
+        assert len(interledger.transfers_sent) == 1
+        assert len(interledger.results_commit) == 1
+
+
+        print("Stopping Interledger run coroutine")
+        interledger.stop()
+        await interledger_task
 
 
 
