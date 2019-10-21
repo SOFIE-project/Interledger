@@ -20,7 +20,7 @@ The current directory contains the project of the Interledger component for SOFI
 
 - The `doc` folder contains restructured text documentation for a sphinx project. _Last update: beginning of September 2019, demo in Terni._
 
-- The `images` are made with the Google draw.io tool and can be found in the `imgs` directory. Moreover, the images and the xml file to generate them can be found in the SOFIE Google Drive under */WP2 - Architecture/Framework Components/Interledger*.
+- The `images` are made with the Google draw.io tool and can be found in the `imgs` directory. Moreover, the same images and **the draw.io xml** file to generate them can be found in the SOFIE Google Drive under */WP2 - Architecture/Framework Components/Interledger/Images/Asset transfer*.
 
 ## Start working with it
 
@@ -52,7 +52,7 @@ Read the README. But here a guideline:
 
 - The `sofie_asset_transfer.interfaces` module:
     - [ ] An implementation of Initiator and Responder able to interact with another ledger. In SOFIE, Hyperledger Fabric (HF) is a ledger that is going to be used.
-    - [ ] Find a different return value from True / False, if needed.
+    - [x] Find a different return value from True / False, if needed.
 
 - The `sofie_asset_transfer.db_manager` module:
     - [ ] Design a better DB composition if needed: at the moment there are two un-related tables.

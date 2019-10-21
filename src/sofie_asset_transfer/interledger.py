@@ -1,4 +1,4 @@
-from .interfaces import Initiator, Responder
+from .interfaces import Initiator, Responder, ErrorCode
 from .state_interfaces import StateInitiator, StateResponder, AssetState
 import time, asyncio
 from asyncio import Condition
@@ -124,19 +124,29 @@ class Interledger(object):
         for t in self.transfers_sent:
 
             if t.state == State.RESPONDED:
-                
-                if t.result:
+
+                if t.result["status"]:
                     # accept() goes well
                     # State of the asset:
                         # (TransferOut | Here) -> (Not Here | Here)
                     asyncio.ensure_future(self.initiator.commit_transfer(t))
+                    # TODO check whether commit was successful
+                    # check return value
+                    
                     self.results_commit.append(t.result)
                 else:
+                    # TODO check error code of the accept transaction:
+                    # if t.result["error"] == ErrorCode.TIMEOUT then DO_SOMETHING
+                    # if t.result["error"] == ErrorCode.TRANSACTION_FAILURE then DO_SOMETHING
+
                     # Error during accept() from Responder
                         # accept() should not have changed the state of the Asset
                     # State of the asset:
                         # (TransferOut | Not Here) -> (Here | Not Here)
                     asyncio.ensure_future(self.initiator.abort_transfer(t))
+                    # TODO check whether abort was successful
+                    # check return value
+
                     self.results_abort.append(t.result)
 
                 t.state = State.FINALIZED
@@ -202,7 +212,7 @@ class StateInterledger(Interledger):
             t.data = {}
             t.data["assetId"] = i
             new_transfers.append(t)
-        # new_transfers = [Transfer() for i in ids]
+
         return new_transfers
 
 
@@ -224,5 +234,5 @@ class StateInterledger(Interledger):
             t.state = State.RESPONDED # accept() already been called by Responder
             t.result = True # needs to commit() this uncomplted transfer
             new_transfers.append(t)
-        # new_transfers = [Transfer() for i in ids]
+
         return new_transfers

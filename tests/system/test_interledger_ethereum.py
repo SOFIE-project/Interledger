@@ -70,12 +70,16 @@ async def test_interledger_with_two_ethereum():
     assetId = w3_A.toBytes(text="Vorpal Sword")
 
         # Ledger A
-    token_instance_A.functions.mint(bob_A, tokenId, tokenURI, assetId).transact({'from': contract_minter_A})
-        # Ledger A
-    token_instance_B.functions.mint(bob_B, tokenId, tokenURI, assetId).transact({'from': contract_minter_B})
+    tx_hash = token_instance_A.functions.mint(bob_A, tokenId, tokenURI, assetId).transact({'from': contract_minter_A})
+    w3_A.eth.waitForTransactionReceipt(tx_hash)
+
+        # Ledger B
+    tx_hash = token_instance_B.functions.mint(bob_B, tokenId, tokenURI, assetId).transact({'from': contract_minter_B})
+    w3_B.eth.waitForTransactionReceipt(tx_hash)
 
         # Activate token in ledgerA
-    token_instance_A.functions.accept(tokenId).transact({'from': contract_minter_A})
+    tx_hash = token_instance_A.functions.accept(tokenId).transact({'from': contract_minter_A})
+    w3_A.eth.waitForTransactionReceipt(tx_hash)
 
     print("Test setup ready")
 
@@ -94,7 +98,8 @@ async def test_interledger_with_two_ethereum():
         interledger_task = asyncio.ensure_future(interledger.run())
 
         print("A smart contract call in ledger A marks the token in 'TransferOut'")
-        token_instance_A.functions.transferOut(tokenId).transact({'from': bob_A})
+        tx_hash = token_instance_A.functions.transferOut(tokenId).transact({'from': bob_A})
+        w3_A.eth.waitForTransactionReceipt(tx_hash)
 
         await asyncio.sleep(1) # Simulate Interledger running
 
@@ -123,7 +128,8 @@ async def test_interledger_with_two_ethereum():
 
         print("A smart contract call in ledger B marks the token in 'TransferOut'")
 
-        token_instance_B.functions.transferOut(tokenId).transact({'from': bob_B})
+        tx_hash = token_instance_B.functions.transferOut(tokenId).transact({'from': bob_B})
+        w3_B.eth.waitForTransactionReceipt(tx_hash)
 
         await asyncio.sleep(1) # Simulate Interledger running
 

@@ -42,7 +42,7 @@ class MockResponder:
 
     async def receive_transfer(self, t: Transfer):
 
-        return 42
+        return {"status": 42}
 
 
 # Responder which getting negative result
@@ -51,7 +51,7 @@ class MockResponderAbort:
 
     async def receive_transfer(self, t: Transfer):
 
-        return False
+        return {"status": False}
 
 
 
@@ -139,11 +139,11 @@ async def test_interledger_transfer_result():
 @pytest.mark.asyncio
 async def test_interledger_process_result_commit():
 
-    i = Interledger(MockInitiator([]), MockResponder())
+    i = Interledger(MockInitiator([]), None)
     
     t = Transfer()
     t.state = State.RESPONDED
-    t.result = True
+    t.result = {"status": True}
     i.transfers_sent = [t]
     i.pending = 1
     
@@ -164,11 +164,11 @@ async def test_interledger_process_result_commit():
 @pytest.mark.asyncio
 async def test_interledger_process_result_abort():
 
-    i = Interledger(MockInitiator([]), MockResponder())
+    i = Interledger(MockInitiator([]), None)
     
     t = Transfer()
     t.state = State.RESPONDED
-    t.result == False
+    t.result = {"status": False}
     i.transfers_sent = [t]
     i.pending = 1
     

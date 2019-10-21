@@ -1,4 +1,11 @@
 from typing import List, Dict
+from enum import Enum
+
+# Error codes
+class ErrorCode(Enum):
+    TIMEOUT = 1
+    TRANSACTION_FAILURE = 2
+
 
 class Transfer(object):
     pass

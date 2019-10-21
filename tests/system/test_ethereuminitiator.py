@@ -1,10 +1,9 @@
-from sofie_asset_transfer.interledger import Transfer
-from sofie_asset_transfer.ethereum import Web3Initializer, EthereumInitiator, EthereumResponder
-import pytest, time
-import asyncio 
-import json, time
+from sofie_asset_transfer.interledger import Transfer, ErrorCode
+from sofie_asset_transfer.ethereum import EthereumInitiator
+import pytest, asyncio
+import os, json
+import web3
 from web3 import Web3
-import os
 
 # Helper functions
 def readContractData(path):
@@ -49,6 +48,19 @@ else:
 # # 
 #
 
+def test_init():
+
+    # Setup web3 and state
+    url = "HTTP://127.0.0.1"
+    port = 8545
+
+    init = EthereumInitiator("minter", "contract", url, port=port)
+
+    assert init.web3.isConnected()
+    assert init.minter == "minter"
+    assert init.contract_init == "contract"
+    assert init.timeout == 120
+
 #
 # Test get_transfers
 #
@@ -76,13 +88,16 @@ async def test_initiator_get_transfers():
     # Create a token
     ids = [123, 124, 125, 126]
     tokenURI = "weapons/"
-    assetId = w3.toBytes(text="Vorpal Sword")
+    assetName = w3.toBytes(text="Vorpal Sword")
 
     for tokenId in ids:
 
-        token_instance.functions.mint(bob, tokenId, tokenURI, assetId).transact({'from': contract_minter})
+        tx_hash = token_instance.functions.mint(bob, tokenId, tokenURI, assetName).transact({'from': contract_minter})
+        w3.eth.waitForTransactionReceipt(tx_hash)
+    
         # Change to valid state
-        token_instance.functions.accept(tokenId).transact({'from': contract_minter})
+        tx_hash = token_instance.functions.accept(tokenId).transact({'from': contract_minter})
+        w3.eth.waitForTransactionReceipt(tx_hash)
 
 
     ### Test Ethereum Initiator ###
@@ -91,6 +106,7 @@ async def test_initiator_get_transfers():
 
     # Emit 1 event and call get_transfers
     tx_hash = token_instance.functions.transferOut(ids[0]).transact({'from': bob})
+    w3.eth.waitForTransactionReceipt(tx_hash)
     transfers = await init.get_transfers()
 
     t = transfers[0]
@@ -111,13 +127,8 @@ async def test_initiator_get_transfers():
 
     assert len(transfers) == 1
 
-    
-#
-# Test abort_transfer
-#
 
-@pytest.mark.asyncio
-async def test_initiator_abort():
+def setUp():
 
     # Setup the state
         # Deploy contract
@@ -140,26 +151,37 @@ async def test_initiator_abort():
     # Create a token
     tokenId = 123
     tokenURI = "weapons/"
-    assetId = w3.toBytes(text="Vorpal Sword")
+    assetName = w3.toBytes(text="Vorpal Sword")
 
-    token_instance.functions.mint(bob, tokenId, tokenURI, assetId).transact({'from': contract_minter})
+    token_instance.functions.mint(bob, tokenId, tokenURI, assetName).transact({'from': contract_minter})
     # Change to valid state
-    token_instance.functions.accept(tokenId).transact({'from': contract_minter})
-    token_instance.functions.transferOut(tokenId).transact({'from': bob})
+    tx_hash = token_instance.functions.accept(tokenId).transact({'from': contract_minter})
+    w3.eth.waitForTransactionReceipt(tx_hash)
+
+    tx_hash = token_instance.functions.transferOut(tokenId).transact({'from': bob})
+    w3.eth.waitForTransactionReceipt(tx_hash)
 
     t = Transfer()
     t.data = dict()
     t.data["assetId"] = tokenId
 
+    return (contract_minter, token_instance, url, port, t)
+#
+# Test abort_transfer
+#
 
-    ### Test Ethereum Initiator ###
-    
+@pytest.mark.asyncio
+async def test_initiator_abort():
+
+    (contract_minter, token_instance, url, port, t) = setUp()
+
+    ### Test Ethereum Initiator ###    
 
     init = EthereumInitiator(contract_minter, token_instance, url, port=port)
 
     result = await init.abort_transfer(t)
 
-    assert result == True
+    assert result["status"] == True
 
 
 #
@@ -169,44 +191,44 @@ async def test_initiator_abort():
 @pytest.mark.asyncio
 async def test_initiator_commit():
 
-    # Setup the state
-        # Deploy contract
-        # Mint token
-        # Call accept() from the minter
-        # Call transferOut() from token owner
-        
-    # Setup web3 and state
-    url = "HTTP://127.0.0.1"
-    port = 8545
-    w3 = Web3(Web3.HTTPProvider(url+":"+str(port)))
-
-    abi, bytecode = readContractData(contract_path)
-
-    contract_minter = w3.eth.accounts[0]
-    bob = w3.eth.accounts[1]
-
-    token_instance = create_contract(w3, abi, bytecode, contract_minter)
-
-    # Create a token
-    tokenId = 123
-    tokenURI = "weapons/"
-    assetId = w3.toBytes(text="Vorpal Sword")
-
-    token_instance.functions.mint(bob, tokenId, tokenURI, assetId).transact({'from': contract_minter})
-    # Change to valid state
-    token_instance.functions.accept(tokenId).transact({'from': contract_minter})
-    token_instance.functions.transferOut(tokenId).transact({'from': bob})
-
-    t = Transfer()
-    t.data = dict()
-    t.data["assetId"] = tokenId
-
+    (contract_minter, token_instance, url, port, t) = setUp()
 
     ### Test Ethereum Initiator ###
-    
 
     init = EthereumInitiator(contract_minter, token_instance, url, port=port)
 
     result = await init.commit_transfer(t)
 
-    assert result == True
+    assert result["status"] == True
+
+
+@pytest.mark.asyncio
+async def test_initiator_abort_txerror():
+
+    (contract_minter, token_instance, url, port, t) = setUp()
+    t.data["assetId"] += 1 # <- fail
+
+    ### Test Ethereum Initiator ###
+
+    init = EthereumInitiator(contract_minter, token_instance, url, port=port)
+
+    result = await init.abort_transfer(t)
+
+    assert result["status"] == False
+    assert result["error_code"] == ErrorCode.TRANSACTION_FAILURE
+
+
+@pytest.mark.asyncio
+async def test_initiator_commit_txerror():
+
+    (contract_minter, token_instance, url, port, t) = setUp()
+    t.data["assetId"] += 1 # <- fail
+
+    ### Test Ethereum Initiator ###
+
+    init = EthereumInitiator(contract_minter, token_instance, url, port=port)
+
+    result = await init.commit_transfer(t)
+
+    assert result["status"] == False
+    assert result["error_code"] == ErrorCode.TRANSACTION_FAILURE
