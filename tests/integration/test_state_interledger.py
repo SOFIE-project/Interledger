@@ -71,10 +71,10 @@ async def test_interledger_run_with_restore_ready():
             init = base+".state_interfaces.StateInitiator"
             resp = base+".state_interfaces.StateResponder"
             get_future = asyncio.Future()
-            get_future.set_result([])
             receive_future = asyncio.Future()
-            receive_future.set_result(42)
             commit_future = asyncio.Future()
+            get_future.set_result([])
+            receive_future.set_result({"status": True})
             commit_future.set_result(True)
 
             with patch(init+".get_transfers", return_value=get_future) as mock_get_transfers:
@@ -108,8 +108,8 @@ async def test_interledger_run_with_restore_sent():
     t.data["assetId"] = 123
     t.state = State.RESPONDED
     t.future = asyncio.Future()
-    t.future.set_result(True)
-    t.result = True
+    t.future.set_result({"status": True})
+    t.result = {"status": True}
 
     with patch(package+".restore_pending_transfers_ready", return_value=[]) as mock_ready:
         with patch(package+".restore_pending_transfers_sent", return_value=[t]) as mock_sent:
@@ -122,7 +122,7 @@ async def test_interledger_run_with_restore_sent():
             receive_future = asyncio.Future()
             commit_future = asyncio.Future()
             get_future.set_result([])
-            receive_future.set_result(42)
+            receive_future.set_result({"status": True})
             commit_future.set_result(True)
 
             with patch(init+".get_transfers", return_value=get_future) as mock_get_transfers:

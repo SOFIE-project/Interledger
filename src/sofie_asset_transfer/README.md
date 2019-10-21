@@ -134,6 +134,18 @@ The only function provided by Responder is:
 
 * ``receive_transfer``: receives a transfer request and initiate the protocol by calling the ``accept()`` function;
 
+**Return values**
+
+The functions ``commit_transfer``, ``abort_transfer`` and ``receive_transfer`` have this dictionary as return value:
+
+    {
+        'status': bool,
+        'tx_hash': str,
+        'exception': object,# only with errors
+        'error_code': Enum, # only with errors
+        'message': str      # only with errors
+    }
+
 ### The Transfer object
 
 The ``Transfer`` object is a data structure which contains the data necessary to perform the asset transfer protocol for a particular asset.
@@ -178,8 +190,8 @@ The figure below shows a visual representation of a transfer between ledgers:
 - The Initiator starts listening for ``transferOut`` operations from LedgerA;
 - When the Initiator catches one, it builds a ``Transfer`` to send to the Responder;
 - The Responder calls the ``accept()`` function to set the presence of that asset in LedgerB;
-- After receiving positive respose from LedgerB, the Responder sets that ``Transfer`` as "sent";
-- The Initiator loops over the pending transfers and, if a transfer has label "sent", finalize the protocol by calling the ``commit()`` function in LedgerA. 
+- After receiving a respose from LedgerB, the Responder labels that ``Transfer`` as "responded";
+- For "respondend" transfers, the Initiator finalizes the protocol by calling the ``commit()`` (or ``abort()``) function in LedgerA. 
 
 The red and blue colors identify the caller of the transaction to a specific ledger: the caller is responsible for paying the transaction fee.
 
