@@ -1,8 +1,10 @@
-from sofie_asset_transfer.interledger import Interledger, Transfer, State
+from data_transfer.interledger import Interledger, Transfer, State
+from data_transfer.interfaces import LedgerType
 from typing import List
 import pytest, time
 import asyncio 
 from unittest.mock import patch
+from uuid import uuid4
 
 # # # Global view
 # #
@@ -18,18 +20,19 @@ class MockInitiator:
 
     def __init__(self, events: List):
         self.events = events
+        self.ledger_type = LedgerType.ETHEREUM
 
-    async def get_transfers(self):
+    async def listen_for_events(self):
         result = []
         if len(self.events) > 0:
             result = self.events.copy()
             self.events.clear()
         return result
     
-    async def commit_transfer(self, t: Transfer):
+    async def commit_sending(self, id: str):
         return True
 
-    async def abort_transfer(self, t: Transfer):
+    async def abort_sending(self, id: str, reason: int):
         return False
 
 
@@ -39,8 +42,9 @@ class MockResponder:
 
     def __init__(self):
         self.events = []
+        self.ledger_type = LedgerType.ETHEREUM
 
-    async def receive_transfer(self, t: Transfer):
+    async def send_data(self, nonce: str, data: bytes):
 
         return {"status": 42}
 
@@ -49,7 +53,7 @@ class MockResponder:
 
 class MockResponderAbort:
 
-    async def receive_transfer(self, t: Transfer):
+    async def send_data(self, nonce: str, data: bytes):
 
         return {"status": False}
 
@@ -63,6 +67,7 @@ class MockResponderAbort:
 async def test_interledger_receive_transfer():
 
     t = Transfer()
+    t.payload = {}
     init = MockInitiator([t])
     resp = MockResponder()
     interledger = Interledger(init, resp)
@@ -88,6 +93,9 @@ async def test_interledger_receive_transfer():
 async def test_interledger_send_transfer():
 
     t = Transfer()
+    t.payload = {}
+    t.payload['nonce'] = str(uuid4().int)
+    t.payload['data'] =  b"dummy"
     i = Interledger(MockInitiator([]), MockResponder())
 
     i.transfers = [t]
@@ -139,9 +147,11 @@ async def test_interledger_transfer_result():
 @pytest.mark.asyncio
 async def test_interledger_process_result_commit():
 
-    i = Interledger(MockInitiator([]), None)
+    i = Interledger(MockInitiator([]), MockResponder())
     
     t = Transfer()
+    t.payload = {}
+    t.payload['id'] = str(uuid4().int)
     t.state = State.RESPONDED
     t.result = {"status": True}
     i.transfers_sent = [t]
@@ -164,9 +174,11 @@ async def test_interledger_process_result_commit():
 @pytest.mark.asyncio
 async def test_interledger_process_result_abort():
 
-    i = Interledger(MockInitiator([]), None)
+    i = Interledger(MockInitiator([]), MockResponder())
     
     t = Transfer()
+    t.payload = {}
+    t.payload['id'] = str(uuid4().int)
     t.state = State.RESPONDED
     t.result = {"status": False}
     i.transfers_sent = [t]
@@ -183,27 +195,32 @@ async def test_interledger_process_result_abort():
     assert i.pending == 0
 
 
-##############################
+# ##############################
 
-#
-# Test run
-# - with no cleanup
-# - with cleanup
-#
+# #
+# # Test run
+# # - with no cleanup
+# # - with cleanup
+# #
     
 @pytest.mark.asyncio
 async def test_interledger_run_no_cleanup():
 
     l1, l2, l3 = [], [], []
     for i in range(4):
-        l1.append(Transfer())
-        l2.append(Transfer())
-        l3.append(Transfer())
+        t1, t2, t3 = Transfer(), Transfer(), Transfer()
+        t1.payload, t2.payload, t3.payload = {}, {}, {}
+        t1.payload['nonce'], t1.payload['id'], t1.payload['data'] = str(uuid4().int), '1', b"dummy1"
+        t2.payload['nonce'], t2.payload['id'], t2.payload['data'] = str(uuid4().int), '2', b"dummy2"
+        t3.payload['nonce'], t3.payload['id'], t3.payload['data'] = str(uuid4().int), '3', b"dummy3"
+        l1.append(t1)
+        l2.append(t2)
+        l3.append(t3)
 
     init = MockInitiator(l1)
     i = Interledger(init, MockResponder())
 
-    with patch("sofie_asset_transfer.interledger.Interledger.cleanup") as mock_cleanup:
+    with patch("data_transfer.interledger.Interledger.cleanup") as mock_cleanup:
 
         task = asyncio.ensure_future(i.run())
 
@@ -237,9 +254,14 @@ async def test_interledger_run_with_cleanup():
 
     l1, l2, l3 = [], [], []
     for i in range(4):
-        l1.append(Transfer())
-        l2.append(Transfer())
-        l3.append(Transfer())
+        t1, t2, t3 = Transfer(), Transfer(), Transfer()
+        t1.payload, t2.payload, t3.payload = {}, {}, {}
+        t1.payload['nonce'], t1.payload['id'], t1.payload['data'] = str(uuid4().int), '1', b"dummy1"
+        t2.payload['nonce'], t2.payload['id'], t2.payload['data'] = str(uuid4().int), '2', b"dummy2"
+        t3.payload['nonce'], t3.payload['id'], t3.payload['data'] = str(uuid4().int), '3', b"dummy3"
+        l1.append(t1)
+        l2.append(t2)
+        l3.append(t3)
 
     init = MockInitiator(l1)
     i = Interledger(init, MockResponder())

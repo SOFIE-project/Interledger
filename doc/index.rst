@@ -9,8 +9,9 @@ This is the index page for the SOFIE Interldger component.
    :maxdepth: 3
    :caption: Table of contents:
 
-   introduction
-   interledger
+   Interledger_internals
+   example-data_transfer
+   example-game_asset_transfer
    smart_contracts
    python_scripts
 

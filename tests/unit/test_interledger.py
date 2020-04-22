@@ -1,6 +1,8 @@
-from sofie_asset_transfer.interfaces import Initiator, Responder
-from sofie_asset_transfer.interledger import Interledger, Transfer, State
 
+from data_transfer.interfaces import Initiator, Responder
+from data_transfer.interledger import Interledger, Transfer, State
+#import sys, os
+#sys.path.append(os.path.realpath('./src'))
 def test_interledger_init():
     # Test initialization of interledger
 
@@ -38,16 +40,6 @@ def return_transfer_list():
 
     return [t1, t2, t3, t4]
 
-def test_interledger_cleanuplist():
-
-    interledger = Interledger(None, None)
-    ts = return_transfer_list()
-    ts = interledger.cleanlist(ts, State.FINALIZED)
-
-    assert len(ts) is 3
-    assert ts[0].state is State.READY
-    assert ts[1].state is State.SENT
-    assert ts[2].state is State.RESPONDED
 
 
 def test_interledger_cleanup():

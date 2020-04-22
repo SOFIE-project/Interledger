@@ -1,80 +1,79 @@
-# SOFIE Interledger component
+# SOFIE Interledger Component
 
-**Table of contents:**
-
-- [Description](#description)
-    - [Architecture Overview](#architecture-overview)
-    - [Main Concepts](#main-concepts)
-    - [Relation with SOFIE](#relation-with-sofie)
-    - [Key Technologies](#key-technologies)
-
-- [Usage](#usage)
-    - [Prerequisites](#prerequisites)
-    - [Installation](#installation)
-    - [Interledger Configuration](#interledger-configuration)
-    - [Execution](#execution)
-
-- [Testing](#testing)
-    - [Environment](#environment)
-    - [Running the tests](#running-the-tests)
-    - [Evaluating the results](#evaluating-the-results)
-
-- [Integration](#integration)
-- [Deployment](#deployment)
-- [Open and Known Issues](#known-and-open-issues)
-- [Contact Info](#contact-info)
-
-- [Generating documentation](#generating-documentation)
-
+## Table of Contents
+- [Description](#Description)
+    - [Architechture Overview](#Architecture-Overview)
+    - [Relation with SOFIE](#Relation-with-SOFIE)
+    - [Key Technologies](#Key-Technologies)
+- [Usage](#Usage)
+    - [Prerequisites](#Prerequisites)
+    - [Installation](#Installation)
+    - [Configuration](#Configuration)
+    - [Execution](#Execution)
+    - [Docker Images](#Docker-Images)
+- [Testing](#Testing)
+    - [Prerequisites for Testing](#Prerequisites-for-Testing)
+    - [Running the Tests](#Running-the-Tests)
+    - [Evaluating Results](Evaluating-Results)
+- [Generating Documentation](#Generating-Documentation)
+- [Open Issues](#Open-Issues)
+- [Future Work](#Future-Work)
+- [Contact Info](#Contact-Info)
+- [License](#License)
 
 ## Description
 
-The SOFIE Interledger component implements a protocol to bridge two ledgers (A, B). If a particular event has been emitted in ledger A, then the Interledger component will catch that event and will perform some operation in ledger B.
+Interledger component enables activity on one ledger to trigger activity on another ledger in an atomic transaction. The ledgers can be of the same or different types (e.g. Ethereum and KSI), and once triggered by a specific event, Interledger passes a customisable payload from the initiating ledger to the receiving ledger. The disributed applications utilising the Interledger component then have the flexibility to use the payload to implement any customised features. 
 
-In particular, the Interledger component currently supports the “transfer” of an asset from ledger A to ledger B, and vice versa.
-
+Examples of how Interledger can be utilised include:
+- [Transfering Data](/doc/example-data_transfer.rst) from one ledger to another.
+- [Storing Data Hashes](/doc/adapter-ksi.md) stores detailed information in a (private) ledger and a hash of the information is then  stored in a (public) ledger at suitable intervals using Interledger to benefit from the higher trust of a public ledger.
+- [Game Asset Transfer](/doc/example-game_asset_transfer.rst) example provides functionality for managing in-game assets: the assets can either be used in a game or traded between gamers. For both activities, a separate ledger is used and Interledger ensures that each asset is active in only one of the ledgers.
 
 ### Architecture Overview
+As shown in Figure 1, internally the Interledger component is composed of three types of elements:
+- a single *core*  that manages the transactions between ledgers
+- *DLT adapters (Initiators and Responders)* for different ledger types. 
+- on some ledgers: an interface for a smart contract
 
-> **PREMISE:** to avoid confusion, with **Interledger component** we refer to the set of smart contracts and modules, meanwhile with **Interledger module** to the class named Interledger.
+<img width="75%" src="figures/Interledger-overview-1.png">
 
-The asset transfer functionality of the Interledger component is implemented with a state machine. Each asset has a "state" indicating its presence or absence in a ledger. The state machine is implemented as follows:
+Figure 1: internal structure of the Interledger module
 
-- The state information is stored in **smart contracts**. A smart contract stores the state of the asset in the ledger it has been deployed in and exposes the methods to switch between states;
-- The transition between states is implemented by the **software modules**. The main  modules are the three listed below:
+Interledger component currently supports two DLT types: [Ethereum](/doc/adapter-eth.md) and [KSI](/doc/adapter-ksi.md). Other DLTs can be supported by [implementing adapters](/doc/Interledger_internals.rst#extending-interledger-to-support-additional-ledgers) for them. Support for additional ledgers is forthcoming as discussed in the [Future Work](#Future-Work) section.
 
-    - **Initiator:** is responsible to catch the events from a ledger and to finalize or abort the protocol depending on the result received from the Responder;
-    - **Responder:** receives transfer requests from the Initiator and is responsible to start the transfer to the other ledger;
-    - **Interledger:** creates a bridge from a ledger A to a ledger B by instantiating a Initiator listening for events coming from ledger A and executing transactions to ledger B by instantiating a Responder. To handle transfers from ledger B to ledger A, instantiate a second Interledger with Initiator connected to ledger B and Responder connected to ledger A.
+Ledgers can function as *Initiators* that trigger transactions and as *Responders* that act based on a trigger thus creating a unidirectional data transfer from the *Initiator* to the *Responders*. However, a pair of ledgers can also be configured for bidirectional data transfer by defining both ledgers as *Initiators* and *Responders* as described in the [Configuration](#Configuration) section. 
 
-The figure below shows how these modules interact with each other.
+Some ledgers may only be capable of acting in one of the roles, e.g. KSI can only act as a Responder that stores hashes as KSI cannot emit events. 
 
-Currently the Interledger component supports Ethereum. In order for the component to support another ledger, Initator and Responder classes must be extended to be able to read and write from/to that particular ledger, along with the necessary smart contracts.
+As shown in figure 2, Interledger functions by linking two ledgers, one in the *Initiator* role and one in the *Responder* role. The Interledger component is run on a server and it listens for events (*InterledgerEventSending*) from the *Initiator*, which triggers the Interledger to call the *interledgerReceive()* function on the *Responder* . Once the *Responder* is finishied processing the transaction, it emits either *InterledgerEventAccepted* event, which triggers the Interledger to call *interledgerCommit()* function of the *Initiator*, or the *InterledgerEventRejected* event, which triggers the Interledger to call the *interledgerAbort()* function of the *Initiator*.
 
-The figure below shows an implementation of the Initiator and Responder connected to the Ethereum network.
+![Interledger](figures/Interledger-overview-2.png)
+Figure 2: using the Interledger module
 
-![Interledger](/imgs/Struct.png)
+On some ledgers (e.g. Ethereum), the Interledger communicates with a smart contract on the ledger (so an [interface](/doc/Interledger_internals.rst#ledger-interfaces) for the smart contract is provided), while on others (e.g. KSI), no smart contract is required (or even available) and the Interledger communicates with the ledger directly.
+
+The ability to act as the Initiator smart contract or the Responder smart contract is normally included in the application logic, but a separate proxy contracts can also be used as wrappers to interface with the Interledger module as has been done e.g. in the [Food Supply Chain pilot](https://media.voog.com/0000/0042/0957/files/sofie-onepager-food_final.pdf).
+
+More details of the Interledger component's implementation can be found in the [Technical description](/doc/Interledger_internals.rst).
 
 ### Relation with SOFIE
+Interledger is a key component of the SOFIE Federation Architecture as it enables transactions across ledgers. It is a a standalone module that may be used by other SOFIE components and applications as necessary.
 
-The interledger component is standalone, it may be used by other SOFIE components and applications as necessary.
 
-### Main Concepts
-
-The design of the architecture is driven by the asset transfer scenario of the SOFIE Gaming Pilot. For more details please check [this readme](/src/sofie_asset_transfer/README.md), located in the src/sofie_asset_transfer directory.
-
+SOFIE pilots utilise the Interledger for different purposes, eg.g. the [Food Supply Chain](https://media.voog.com/0000/0042/0957/files/sofie-onepager-food_final.pdf) uses the Interledger  to automatically store hashes of the transactions on private ledgers onto a public Ethereum ledger for integrity verification, while the [Context-aware Mobile Gaming](https://media.voog.com/0000/0042/0957/files/sofie-onepager-gaming-noScreens.pdf) utilises Interledger to enforce that in-game assets are either available for gaming or being traded between gamers. 
 
 ### Key Technologies
-
 The software modules are implemented in **Python**.
-Currently the component supports the Ethereum ledger and thus **Solidity** smart contracts.
+Currently the component supports the Ethereum ledger and thus **Solidity** smart contracts as well as the KSI ledger.
 
 ***
 
 ## Usage
 
-The `src/sofie_asset_transfer` directory contains the code implementing the software modules.
-The `truffle/contracts` contains the smart contracts used by the component.
+The `src/data_transfer` directory contains the code implementing the software modules of interledger and the default adapters for Ethereum and KSI.
+
+The `solidity/contracts` contains the smart contracts including the data transfer interfaces used by the component.
 
 ### Prerequisites
 
@@ -82,194 +81,244 @@ Software modules: **Python 3.6**.
 
 Smart contracts: **Solidity 0.5**.
 
-NodeJs and node package manager, (npm).
+Ganache CLI and Truffle to test Interledger locally.
 
 ### Installation
 
-Install Truffle (which includes the Solidity compiler) and [OpenZeppelin](https://github.com/openzeppelin/openzeppelin-contracts) smart contract dependencies both locally.
+The dependencies of the Interledger component can be installed with the following commands (note that it is also possible to run the component using a docker image as described in the [Docker Images](#Docker-Images) section):
 
 ```bash
-cd truffle/
-npm install
-```
-
-Install module requirements.
-
-```bash
-virtualenv -p python3 my-env
+python3 -m venv my-env
 source my-env/bin/activate
 python3 setup.py develop # Install project dependencies locally
-python3 setup.py test # Install test dependencies
 ```
 
-### Interledger configuration
-
+### Configuration
 The configuration file, following the `ini` format, has three main sections:
 
 1) `[service]`: defines the connected ledgers, `left` and `right`, and the `direction` of the data transer;
     - `direction` = `both` | `left-to-right` | `right-to-left`
-    - `left` = *ledger_left*
-    - `right` = *ledger_right*
+    - `left` = *left*
+    - `right` = *right*
 
-2) `[ledger_left]`: indicates the `type` of that ledger and lists its options. The options depend on the specific ledger.  
-    - `type` = `ethereum` | ...
+2) `[left]`: indicates the `type` of that ledger and lists its options. The options depend on the specific ledger.  
+    - `type` = `ethereum` | `ksi` | ...
     - ...
 
-3) `[ledger_right]`: same as above.
-    - `type` = `ethereum` | ...
+3) `[right]`: same as above.
+    - `type` = `ethereum` | `ksi` | ...
     - ...
 
 The `direction` can have three values:
-- `left-to-right` means that interledger listens for events upcoming from the left ledger `ledger_left` and transfers data to the right ledger `ledger_right`. The interledger component has an `Initiator` adapter for the left ledger and a `Responder` adapter for the right ledger;
+- `left-to-right` means that interledger listens for events on the `left` ledger and transfers data to the `right` ledger. The interledger component has an `Initiator` adapter for the `left` ledger and a `Responder` adapter for the `right` ledger;
 - `right-to-left` the same, but with inverse order;
-- `both` means the interledger can transfer an asset both ways. Both `Initiator` and `Responder` adapters will be instatiated for both ledgers.
+- `both` means that the two interledger instances will be started (Interledger is unidirectional) to allow transfering data in both directions and that both `Initiator` and `Responder` adapters will be instatiated for both ledgers.
 
-`ledger_left` and `ledger_right` are custom names and provide all the options needed to setup the ledgers. The options depend on the `type` of the ledger. Finally, *ledger_left* and *ledger_right* can also be the same: in that case, no 3) section is needed.
+`left` and `right` are custom names and provide all the options needed to setup the ledgers. The available options depend on the `type` of the ledger, and more details of [Ethereum](/doc/adapter-eth.md) and [KSI](/doc/adapter-ksi.md) configuration options are available in their respective documents. Finally, *left* and *right* can also be the same, which can be used e.g. in testing; in that case, section 3 can be omitted.
 
+#### Configuration Example for Ethereum
 
-**Example of configuration to a single Ethereum ledger**
+For ledger `type` =  `ethereum`, the required options are:
 
-For `type` =  `ethereum`, the required options are:
-
-- **url:** the ethereum network url (localhost or with [infura](https://infura.io/));
+- **url:** the ethereum network url (localhost or with [Infura](https://infura.io/));
 - **port:** if the url is localhost;
 - **minter:** the contract minter (creator) address;
-- **contract:** the contract address.
+- **contract:** the contract address;
+- **contract_abi:** path to the file describing the contract ABI in JSON format.
 
-Example of the Interledger configuration file *config-file-name.cfg*:
+Example of the Interledger configuration file *config-file-name.cfg* for Ethereum, it defines two ledgers that are running locally on ports 7545 and 7546:
 
     [service]
     direction=both
-    left=ganache
-    right=ganache
+    left=left
+    right=right
 
-    [ganache8545]
-    type=ethereum
-    url=http://localhost
-    port=8545
-    minter=0x63f7e0a227bCCD4701aB459b837446Ce61aaEb6D
-    contract=0x50dc31410Cae2527b034233338B85872BE67EEe6
-
-    [ganache7545]
+    [left]
     type=ethereum
     url=http://localhost
     port=7545
+    minter=0x63f7e0a227bCCD4701aB459b837446Ce61aaEb6D
+    contract=0x50dc31410Cae2527b034233338B85872BE67EEe6
+    contract_abi=solidity/contracts/GameToken.abi.json
+
+    [right]
+    type=ethereum
+    url=http://localhost
+    port=7546
     minter=0xc4C13639a867EfA9f863aF99A4c8d002E57198e0
     contract=0xba83df5f1DF4aB344240eC9F1E096790c88A216A
+    contract_abi=solidity/contracts/GameToken.abi.json
 
+For public Ethereum network external providers, such as [Infura](https://infura.io/), can be utilised to avoid running a full Ethereum node. For external providers the additional option is:
+
+- **private_key** the private key of the minter account used to sign the transaction;
+
+Specifically, when using the Infura endpoints, please use the websocket version only so that the events emmitted can be listened for properly. An example can be found in the `[infura]` part of the sample configuration `local-config.cfg`.
 
 ### Execution
 
+(For local testing, ensure that local ledger instances are running, and smart contracts are deployed to them, check [testing](#Testing) section for an example.)
+
 Run the following command:
 
-    python3 start_interledger.py config-file-name.cfg
+```bash
+python3 start_interledger.py config-file-name.cfg
+```
 
 Where `config-file-name.cfg` is a configuration file for the setup of the interledger component, following the previously described `ini` format.
 
-This script will create a proper Interledger component instance according to the input configuration file and calls the `Interledger.run()` routine which will listen to events coming from the connected ledger(s). The script can be interrupted with: `^C`.
+This script will create an Interledger component instance according to the configuration file and then calls the `Interledger.run()` routine which will listen to events coming from the connected ledger(s). The script can be interrupted with: `^C`.
 
-**Example of Interledger running locally**
+There are multiple examples of utilising the Interledger component:
 
-> **NOTE:** This example uses this [ERC721-compatible](/truffle/contracts/GameToken.sol) contract, which also implements the protocol interface provided by [this contract](/truffle/contracts/AssetTransferInterface.sol).
+- [CLI demo app](/demo/cli) can be used to directly interact with the Interledger component.
+- A simple example for [data transfer](/doc/example-data_transfer.rst) between two different Ethereum networks via an external provider.
+- Interledger component supports [storing hashes](/doc/adapter-ksi.md) to the [Guardtime KSI](https://guardtime.com/technology) blockchain using [Catena DB](https://tryout-catena.guardtime.net/swagger/) service.
+- The [game asset transfer](/doc/example-game_asset_transfer.rst) example show how a protocol for enforcing that in-game assets are only active in one of the connected ledgers at a time can be built on top of the Interledger.
 
-> **NOTE2:** From now on, we use [ganache-cli](https://github.com/trufflesuite/ganache-cli) as local Ethereum instance. The option ``-p`` identifies the port.
+### Docker Images
 
-This example uses two different ganache networks (both running in localhost, but listening on two different ports).
+Execute the script `docker-build.sh` to build a Docker image for the Interledger component. Configuration file can be provided to the image at runtime `docker run -v /path/to/config.cfg:/var/interledger/local-config.cfg interledger`.
 
+`Dockerfile` contains multiple build targets:
+- **build**: only installs dependencies
+- **interledger_compose**: in addition to above, also compiles smart contracts; this target is used by the Docker Compose setup
+- **run_demo**: runs Interledger command line demo
+- **run (default)**: runs Inteledger component
 
-To setup, first run two ``ganache-cli`` and then migrate the contracts by help of the Makefile. Finally, run the interledger.
+**Docker Compose**
 
-```bash
-ganache-cli -p 8545
-ganache-cli -p 7545
+Docker Compose setup allows an easy usage of the Interledger [CLI demo](/demo/cli/README.md) by running `sh compose_start.sh`. Note that starting the whole setup will take some time, especially for the first time when all the necessary Docker images are build, also it is important to allow the startup script to shutdown gracefully.
 
-make migrate-8545
-make migrate-7545
+The setup contains two Ganache CLI instances that act as local ledgers, the Interledger component, and the command line demo, see `docker-compose.yaml` for more details.
 
-python3 start_interledger.py local-config.cfg
-```
-
-Since every run of `ganache-cli` generates different addresses, migration targets (`migrate-8545` and `migrate-7545`) deploy the contracts in their target networks (localhost:8545 and localhost:7545 respectively), and then modify the `local-config.cfg` file with the minter and contract addresses.
-
-**Interaction**
-
-Is possible to interact with the component through the CLI app in [this directory](./demo/cli).
+If there are any updates to the Interledger component, example smart contracts, `Dockerfile`, or `docker-compose.yaml`, run `docker-compose build` command to rebuild the containers.
 
 ***
 
 ## Testing
 
-The `test/` directory contains the scripts to unit test the software modules of the component.
-The `truffle/test/` directory contains the scripts to unit test the smart contracts.
+The `tests/` directory contains the scripts to test the software modules of the component, including unit tests, integration tests, and system tests, while the `solidity/test/` directory contains the tests for the smart contracts.
 
-### Environment
+### Prerequisites for Testing
 
-- [Truffle](https://www.trufflesuite.com/) to test the smart contracts (it has the [Mocha](https://mochajs.org/) framework embedded);
+The easiest way to run the tests for the component is by using [Tox](https://tox.readthedocs.io/en/latest/), which will install all dependencies for testing and run all the tests. It is also possible to run the tests directly using pytest, which also allows running tests independently.
+
+Install Tox:
+
+```bash
+pip install tox
+```
+
+Or install pytest and dependencies:
+
+```bash
+pip install pytest pytest-asyncio
+```
+
+Some of the tests assume that local Ethereum networks are running. Ganache CLI tool can be used for this:
+
+```bash
+npm install -g ganache-cli
+```
+
+To run component tests requiring local Ethereum networks, and to test example smart contracts, install Truffle:
+
+```bash
+cd solidity/
+npm install
+```
+
+#### Environment
+
+- [Truffle](https://www.trufflesuite.com/) to test the smart contracts (it includes the [Mocha](https://mochajs.org/) framework);
 - The [pytest](https://docs.pytest.org/en/latest/getting-started.html) testing framework;
 - The [pytest asyncio](https://github.com/pytest-dev/pytest-asyncio) library to test async co-routines.
 
-### Running the tests
+### Running the Tests
 
-Read the README in [the testing directory](/tests/README.md) for pytest tests and test structure.
+First, local test networks need to be set up:
 
-To test the smart contracts located in `truffle` directory (it compiles them automatically):
+```bash
+ganache-cli -p 7545
+ganache-cli -p 7546
+```
+
+Afterwards, deploy the smart contracts to the local test networks:
+```bash
+make migrate-left
+make migrate-right
+```
+
+Then, to test the component, run either:
+```bash
+tox
+```
+
+Or:
+```bash
+pytest --ignore=tests/system/test_ksi_responder.py --ignore=tests/system/test_interledger_ethereum_ksi.py --ignore=tests/system/test_timeout.py tests/
+```
+
+Read the [README](/tests/README.md) for pytest tests and test structure.
+
+Note that testing the KSI support requires valid credentials for the Catena service. The tests can be run manually after adding credentials to `local-config.cfg`:
+```bash
+
+pytest tests/system/test_ksi_responder.py tests/system/test_interledger_ethereum_ksi.py
+```
+
+Note that testing timeout handling requires starting `ganache-cli` with `-b <blocking-time>` parameter:
+ ```bash
+ganache-cli -b 1 -p 7545
+ganache-cli -b 1 -p 7546
+
+pytest tests/system/test_timeout.py
+```   
+
+To test the smart contracts located in the `solidity` directory, shutdown `ganache-cli` instances (they will block the tests) and run the following (smart contracts are compiled automatically):
 ```bash
 make test-contracts
 ```
 
-### Evaluating the results
+### Evaluating the Results
 
-At the current state of the implementation, no particular results are logged after the tests.
+When using Tox and Truffle, test results in JUnit format are stored in the `tests` directory. 
+Files `python_test_results.xml` and `smart_contracts_test_results.xml` contain results for 
+the Python and smart contracts tests respectively.
 
 ***
 
-## Integration
+## Generating Documentation
+A documentation file including the information provided by this readme, docs for different modules and functions (both Python and Solidity) can be generated by using the [Sphinx](http://www.sphinx-doc.org/en/master/) tool. This section provides the commands to generate documentation in HTML and PDF formats.
 
-At the current state of the implementation, there is no continuous integration support.
+### Requirements
+- Install dependencies for generating documentation:
+```bash
+pip install sphinx m2r sphinxcontrib-httpdomain sphinxcontrib-soliditydomain sphinxcontrib-seqdiag
+```
 
-## Deployment 
+- Solidity
+To generate code documentation for Solidity, install [soliditydomain](https://pypi.org/project/sphinxcontrib-soliditydomain/).
 
-At the current state of the implementation, there is no continuous deployment support.
+- PDF
+To generate documentation in PDF format, the `latexmk` package is required to be installed. And please follow the [instructions](http://www.sphinx-doc.org/en/master/usage/builders/index.html#sphinx.builders.latex.LaTeXBuilder). **warning! Does not work if Solidity files are included. Exlude them from the documentation if you want to generate PDF documentation.**
 
-## Known and Open issues
+### Generation 
 
-Integration and Deployment are not yet supported. 
-
-Moreover, the limitations of the Interledger module are:
-
-- No closing procedure after a stop:
-    - No resource cleanup;
-- Each run of the module is done with empty data: this means that pending transactions from previous runs will not be considered:
-    - There is no recovery mechanism during re-start;
-- No automatic error detection:
-    - If a transaction fails at any step, the modules does not support any retry mechanism. Therefore a transfer can be left incomplete, breaking the invariant;
-    - The abort step should be done manually by interacting directly with the smart contract;
-    
-***
-
-## Generating documentation
-
-A documentation file including the information provided by the current readme, [asset transfer protocol readme](/src/sofie_asset_transfer/README.md), and the functions (both Python and Solidity) can be generated by using the [Sphinx](http://www.sphinx-doc.org/en/master/) tool. This section provides the commands to generate documentation in HTML and PDF formats.
-
-**Requirements**
-
-- To generate code documentation for Solidity, install [soliditydomain](https://pypi.org/project/sphinxcontrib-soliditydomain/).
-- To generate documentation in PDF format, follow [these instructions](http://www.sphinx-doc.org/en/master/usage/builders/index.html#sphinx.builders.latex.LaTeXBuilder). **warning! Does not work if Solidity files are included. Exlude them from the documentation if you want to generate PDF documentation.**
-
-**Generate HTML documentation:**
-
+- For HTML docs
 ```bash
 make html
 ```
 
-**Generate PDF documentation via LaTeX:**
-
+- For PDF docs via LaTeX
 ```bash
 make latexpdf
 ```
 
-**In case a new sphinx documentation project is created:**
+### Miscs
 
+In case a new sphinx documentation project is created:
 - select **yes** when the `sphinx quickstart` command asks for `autodoc`;
 - include the lines below in `doc/conf.py`:
 
@@ -283,19 +332,39 @@ extensions = ['sphinx.ext.autodoc',
     ]
 
 # autodoc lookup paths for solidity code
-autodoc_lookup_path = '../truffle/contracts' # or any other path to smart-contracts
+autodoc_lookup_path = '../solidity/contracts' # or any other path to smart-contracts
 ```
 
 ***
 
-## Contact Info
+## Open Issues
 
-andrea.lisi@aalto.fi
+- Each run of the module is done with empty data
 
-After the 1st of November 2019, send email to:
-andrealisi.12lj@gmail.com with subject [SOFIE] or [SOFIE Interleger].
+This means that pending transactions from previous runs will not be considered and there is no recovery mechanism during re-start.
+
+- Congestion of Ethereum transactions
+
+If multiple transactions are invoked simultaneously, the (Ethereum) nonce of transactions generated by the component may be out of sync, thus making those invalid.
+
+## Future Work
+
+Some of the planned future improvements to the Interledger component include
+
+- support for other ledger types, e.g. HyperLedger Fabric.
+- support for transactions over more than two ledgers.
+- example of using Hash Time Lock Contracts (HTLCs).
 
 ***
+
+## Contact Information
+
+**Contact**: Wu, Lei lei.1.wu@aalto.fi
+
+**Contributors**: can be found in [authors](AUTHORS)
+
+
+
 ## License
 
 This component is licensed under the Apache License 2.0.

@@ -1,18 +1,20 @@
 # Solidity
 compile:
-	cd truffle && npx truffle compile
+	cd solidity && npx truffle compile
 
 migrate:
-	cd truffle && npx truffle migrate --reset
+	cd solidity && npx truffle migrate --reset
 
-migrate-8545:
-	cd truffle && npx truffle migrate --reset --network ganache8545
+migrate-both: migrate-left migrate-right
 
-migrate-7545:
-	cd truffle && npx truffle migrate --reset --network ganache7545
+migrate-left:
+	cd solidity && npx truffle migrate --reset --network left
+
+migrate-right:
+	cd solidity && npx truffle migrate --reset --network right
 
 test-contracts:
-	cd truffle && npx truffle test
+	cd solidity && npx truffle test
 
 
 # Module testing

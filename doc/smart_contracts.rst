@@ -6,19 +6,70 @@ Interledger smart contracts
 
 This page lists the smart contracts used in Interledger.
 
-The *StateContract* contract exposes an interface composed by data structure, events and functions to support the Interledger protocol :ref:`interledger`. 
+The *InterledgerSenderInterface* describes the sender's interface of 
+:ref:`Interledger protocol <interledger>`.
 
-The *GameToken* contract implement a ERC721 token and implements the *StateContract* in order to be used in the Interledger protocol.
+The *InterledgerReceiverInterface* describes the receiver's interface of 
+:ref:`Interledger protocol <interledger>`.
+
+The *DataSender* contract is a simple implementation of *InterledgerSenderInterface*.
+
+The *DataReceiver* contract is a simple implementation of *InterledgerReceiverInterface*.
+
+The *DataTransceiver* contract implements both *InterledgerSenderInterface* and 
+*InterledgerReceiverInterface*.
+
+The *AssetTransferInterface* contract describes the methods, data structure and events to manage 
+state transition of assets.
+
+The *GameToken* contract implement a ERC721 token and implements the *AssetTransferInterface*,
+*InterledgerSenderInterface*, and *InterledgerReceiverInterface* in order to be used 
+by the Interledger.
 
 ------------------
 Code documentation
 ------------------
 
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+InterledgerSenderInterface
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. autosolcontract:: InterledgerSenderInterface
+    :members:
+
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+InterledgerReceiverInterface
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. autosolcontract:: InterledgerReceiverInterface
+    :members:
+
 ^^^^^^^^^^^^^
-StateContract
+DataSender
 ^^^^^^^^^^^^^
 
-.. autosolcontract:: StateContract
+.. autosolcontract:: DataSender
+    :members:
+
+^^^^^^^^^^^^^
+DataReceiver
+^^^^^^^^^^^^^
+
+.. autosolcontract:: DataReceiver
+    :members:
+
+^^^^^^^^^^^^^^^
+DataTransceiver
+^^^^^^^^^^^^^^^
+
+.. autosolcontract:: DataTransceiver
+    :members:
+
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssetTransferInterface
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. autosolcontract:: AssetTransferInterface
     :members:
 
 ^^^^^^^^^^^^^

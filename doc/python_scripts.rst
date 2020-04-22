@@ -4,9 +4,10 @@
 Interledger python scripts
 ===================================
 
-This page lists the Python modules implementing the protocol :ref:`interledger`.
+This page lists the Python modules of :ref:`Interledger component <interledger_component>`.
 
-The ledger protocol adapters currently support only the Ethereum network.
+There exist both Initiator and Responder implementations for Ethereum, 
+and Responder implementation for KSI.
 
 ------------------
 Code documentation
@@ -16,19 +17,19 @@ Code documentation
 Interfaces: Initiator and Responder
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. automodule:: src.sofie_asset_transfer.interfaces
+.. automodule:: src.data_transfer.interfaces
     :members:
 
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Ethereum: Initiator and Responder
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. automodule:: src.sofie_asset_transfer.ethereum
+.. automodule:: src.data_transfer.ethereum
     :members:
 
 ^^^^^^^^^^^^
 Interledger
 ^^^^^^^^^^^^
 
-.. automodule:: src.sofie_asset_transfer.interledger
+.. automodule:: src.data_transfer.interledger
     :members:

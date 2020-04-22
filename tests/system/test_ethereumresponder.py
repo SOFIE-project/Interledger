@@ -1,38 +1,15 @@
-from sofie_asset_transfer.interfaces import ErrorCode
-from sofie_asset_transfer.interledger import Transfer
-from sofie_asset_transfer.ethereum import EthereumResponder
+from data_transfer.interfaces import ErrorCode
+from data_transfer.interledger import Transfer
+from data_transfer.ethereum import EthereumResponder, EthereumInitiator, Web3Initializer
+from .test_setup import setUp, create_token, accept_token
 import pytest, asyncio
 import os, json
 import web3
 from web3 import Web3
-
-# Helper functions
-def readContractData(path):
-    with open(path) as obj:
-        jsn = json.load(obj)
-        return jsn["abi"], jsn["bytecode"]
+from uuid import uuid4
+from eth_abi import encode_abi
 
 
-def create_contract(w3, abi, bytecode, _from):
-
-    # Create contract
-    TokenContract = w3.eth.contract(abi=abi, bytecode=bytecode)
-    tx_hash = TokenContract.constructor("GameToken", "GAME").transact({'from': _from})
-    tx_receipt = w3.eth.waitForTransactionReceipt(tx_hash)
-    address = tx_receipt.contractAddress
-    token_instance = w3.eth.contract(abi=abi, address=address)
-    return token_instance
-
-# current working directory changes if you run pytest in ./, or ./tests/ or ./tests/system
-cwd = os.getcwd()
-contract_path = "truffle/build/contracts/GameToken.json"
-
-if "system" in cwd.split('/'):
-    contract_path = "../../" + contract_path
-elif "tests" in cwd.split('/'):
-    contract_path = "../" + contract_path
-else:
-    contract_path = "./" + contract_path
 
 # # # Local view
 # #
@@ -41,17 +18,18 @@ else:
 # # 
 #
 
-def test_init():
+def test_init(config):
 
     # Setup web3 and state
-    url = "HTTP://127.0.0.1"
-    port = 8545
 
-    resp = EthereumResponder("minter", "contract", url, port=port)
+    (contract_minter, contract_address, contract_abi, url, port) = setUp(config, 'right')
+    resp = EthereumResponder(contract_minter, contract_address, contract_abi, url, port=port)
+    w3 = Web3(Web3.HTTPProvider(url+":"+str(port)))
+    token_instance = w3.eth.contract(abi=contract_abi, address=contract_address)
 
     assert resp.web3.isConnected()
-    assert resp.minter == "minter"
-    assert resp.contract_resp == "contract"
+    assert resp.minter == contract_minter
+    #assert resp.contract == token_instance
     assert resp.timeout == 120
 
     
@@ -59,65 +37,118 @@ def test_init():
 # Test receive_transfer
 #
 
-
-def setUp():
-
-    # Setup the state
-        # Deploy contract
-        # Mint token
-        # Call accept() from the minter
-        
-    # Setup web3 and state
-    url = "HTTP://127.0.0.1"
-    port = 8545
-    w3 = Web3(Web3.HTTPProvider(url+":"+str(port)))
-
-    abi, bytecode = readContractData(contract_path)
-
-    contract_minter = w3.eth.accounts[0]
-    bob = w3.eth.accounts[1]
-
-    token_instance = create_contract(w3, abi, bytecode, contract_minter)
-
-    # Create a token
-    tokenId = 123
-    tokenURI = "weapons/"
-    assetId = w3.toBytes(text="Vorpal Sword")
-
-    tx_hash = token_instance.functions.mint(bob, tokenId, tokenURI, assetId).transact({'from': contract_minter})
-    w3.eth.waitForTransactionReceipt(tx_hash)
-
-    t = Transfer()
-    t.data = dict()
-    t.data["assetId"] = tokenId
-
-    return (contract_minter, token_instance, url, port, t)
-
-
 @pytest.mark.asyncio
-async def test_responder_receive():
+async def test_responder_receive(config):
 
-    (contract_minter, token_instance, url, port, t) = setUp()
+    (contract_minter, contract_address, contract_abi, url, port) = setUp(config, 'right')
+    w3 = Web3(Web3.HTTPProvider(url+":"+str(port)))
+    token_instance = w3.eth.contract(abi=contract_abi, address=contract_address)
+    # # Create a token
+    tokenId = create_token(contract_minter, token_instance, w3)
+    assert token_instance.functions.getStateOfToken(tokenId).call() == 0
+    ## Test Ethereum Responder ###
 
-    ### Test Ethereum Responder ###
+    resp = EthereumResponder(contract_minter, contract_address, contract_abi, url, port=port)
 
-    resp = EthereumResponder(contract_minter, token_instance, url, port=port)
+    data = encode_abi(['uint256'], [tokenId])
+    nonce= "42"
+    result = await resp.send_data(nonce, data)
+    print(result)
+    tx_hash = result["tx_hash"]
+    tx_info = w3.eth.getTransaction(tx_hash)
+    tx_receipt = w3.eth.getTransactionReceipt(tx_hash)
 
-    result = await resp.receive_transfer(t)
+    assert tx_info ['blockHash'] != None
+    assert tx_info ['hash'] == tx_hash
+    assert tx_info ['to'] == contract_address
+    
+    # check function name and abi
+    decoded_input = token_instance.decode_function_input(tx_info['input'])
+    assert decoded_input[0].fn_name == token_instance.get_function_by_name("interledgerReceive").fn_name
+    assert decoded_input[0].abi == token_instance.get_function_by_name("interledgerReceive").abi
+        
+    # check function parameters
+    assert decoded_input[1]['data'] == data
+        
+    # check for accepted/rejected events
+    logs_accept = token_instance.events.InterledgerEventAccepted().processReceipt(tx_receipt)
+    logs_reject = token_instance.events.InterledgerEventRejected().processReceipt(tx_receipt)
+
+    assert len(logs_accept) == 1
+    assert logs_accept[0]['args']['nonce'] == int(nonce)
+    assert len(logs_reject) == 0
+
+
 
     assert result["status"] == True
 
+
 @pytest.mark.asyncio
-async def test_responder_receive_txerror():
+async def test_responder_receive_transaction_failure(config):
 
-    (contract_minter, token_instance, url, port, t) = setUp()
-    t.data["assetId"] +=1 # <- fail
+    (contract_minter, contract_address, contract_abi, url, port) = setUp(config, 'right')
+    w3 = Web3(Web3.HTTPProvider(url+":"+str(port)))
+    token_instance = w3.eth.contract(abi=contract_abi, address=contract_address)
+    # # Create a token
+    tokenId = create_token(contract_minter, token_instance, w3)
+    assert token_instance.functions.getStateOfToken(tokenId).call() == 0
+    ## Test Ethereum Responder ###
 
-    ### Test Ethereum Responder ###
+    resp = EthereumResponder(contract_minter, contract_address, contract_abi, url, port=port)
 
-    resp = EthereumResponder(contract_minter, token_instance, url, port=port)
-
-    result = await resp.receive_transfer(t)
+    #passing wrong tokenId to simulate transaction failure
+    nonce, data = "42", b"dummy"
+    result = await resp.send_data(nonce, data)
 
     assert result["status"] == False
     assert result["error_code"] == ErrorCode.TRANSACTION_FAILURE
+
+
+
+@pytest.mark.asyncio
+async def test_responder_receive_reject_event(config):
+
+    (contract_minter, contract_address, contract_abi, url, port) = setUp(config, 'right')
+    w3 = Web3(Web3.HTTPProvider(url+":"+str(port)))
+    token_instance = w3.eth.contract(abi=contract_abi, address=contract_address)
+    # # Create a token
+    tokenId = create_token(contract_minter, token_instance, w3)
+    assert token_instance.functions.getStateOfToken(tokenId).call() == 0
+    accept_token(contract_minter, token_instance, w3, tokenId)
+    assert token_instance.functions.getStateOfToken(tokenId).call() == 2
+    ## Test Ethereum Responder ###
+
+    resp = EthereumResponder(contract_minter, contract_address, contract_abi, url, port=port)
+
+    #passing wrong tokenId to simulate transaction failure
+    nonce = "42"
+    data = encode_abi(['uint256'], [tokenId])
+    result = await resp.send_data(nonce, data)
+
+
+    tx_hash = result["tx_hash"]
+    tx_info = w3.eth.getTransaction(tx_hash)
+    tx_receipt = w3.eth.getTransactionReceipt(tx_hash)
+
+    assert tx_info ['blockHash'] != None
+    assert tx_info ['hash'] == tx_hash
+    assert tx_info ['to'] == contract_address
+    
+    # check function name and abi
+    decoded_input = token_instance.decode_function_input(tx_info['input'])
+    assert decoded_input[0].fn_name == token_instance.get_function_by_name("interledgerReceive").fn_name
+    assert decoded_input[0].abi == token_instance.get_function_by_name("interledgerReceive").abi
+
+
+    # check for accepted/rejected events
+    logs_accept = token_instance.events.InterledgerEventAccepted().processReceipt(tx_receipt)
+    logs_reject = token_instance.events.InterledgerEventRejected().processReceipt(tx_receipt)
+
+    assert len(logs_accept) == 0
+    assert len(logs_reject) == 1
+    assert logs_reject[0]['args']['nonce'] == int(nonce)
+
+
+    assert result["status"] == False
+    assert result["error_code"] == ErrorCode.APPLICATION_REJECT
+    assert result["message"] == "InterledgerEventRejected() event received"

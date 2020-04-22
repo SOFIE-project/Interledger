@@ -22,7 +22,7 @@ import sys
 sys.path.insert(0, os.path.abspath('..'))
 
 # autodoc lookup paths for solidity code
-autodoc_lookup_path = '../truffle/contracts'
+autodoc_lookup_path = '../solidity/contracts'
 
 
 # -- General configuration ------------------------------------------------
@@ -41,8 +41,12 @@ master_doc = "index"
 extensions = ['sphinx.ext.autodoc',
     'sphinxcontrib.soliditydomain',
     'sphinx.ext.coverage',
+    'sphinx.ext.autosectionlabel'
     # ,'rst2pdf.pdfbuilder'
     ]
+
+autosectionlabel_prefix_document = True
+autosectionlabel_maxdepth = 3
 
 # PDF LATEX
 # pdf_documents = [('index', u'rst2pdf', u'Sample rst2pdf doc', u'Your Name'),]
@@ -176,7 +180,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
     (master_doc, 'SOFIEInterledger', 'SOFIE Interledger Documentation',
-     author, 'SOFIEInterledger', 'One line description of project.',
+     author, 'SOFIEInterledger', 'Interledger allows atomic cross-ledger transactions.',
      'Miscellaneous'),
 ]
 

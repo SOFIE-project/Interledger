@@ -1,0 +1,63 @@
+# Provides a Docker Compose setup for running Interledger CLI demo
+#
+# ganache_right/left: ganache-cli instances for local ethereum
+#
+# interledger_compose: deploys the smart contracts to Ganache instances,
+#   copies the updated Interledger configuration file to the shared volume,
+#   and runs the Interledger instance
+#
+# interledger_demo: runs the CLI demo using configuration file from
+#   the shared volume
+
+version: '3.4'
+services:
+  interledger_demo:
+    image: interledger_demo
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: run_demo
+    command: [ "sh", "compose_cli_demo.sh" ]
+    stdin_open: true
+    tty: true
+    restart: on-failure
+    depends_on:
+      - interledger_compose
+    volumes:
+      - config_file:/var/interledger/config/
+
+  interledger_compose:
+    image: interledger_compose
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: interledger_compose
+    command: ["sh", "compose_interledger.sh"]
+    depends_on:
+      - ganache_left
+      - ganache_right
+    volumes: 
+      - config_file:/var/interledger/config/
+
+  ganache_left:
+    build:
+      context: .
+      dockerfile: Dockerfile.ganache
+    environment:
+      HOSTNAME: 0.0.0.0
+      PORT: 7545
+    expose:
+      - "7545"
+
+  ganache_right:
+    build:
+      context: .
+      dockerfile: Dockerfile.ganache  
+    environment:
+      HOSTNAME: 0.0.0.0
+      PORT: 7545
+    expose:
+      - "7545"
+
+volumes:
+  config_file:

@@ -1,33 +1,66 @@
-from configparser import ConfigParser
-from src.sofie_asset_transfer.interledger import Interledger
-from src.sofie_asset_transfer.ethereum import EthereumInitiator, EthereumResponder
 import sys, json, asyncio
 from web3 import Web3
+from configparser import ConfigParser
 
-tokenContractFile = "truffle/build/contracts/GameToken.json"
+from src.data_transfer.interledger import Interledger
+from src.data_transfer.ethereum import EthereumInitiator, EthereumResponder
+from src.data_transfer.ksi import KSIResponder
+
 
 # Helper function to read Ethereum related options from configuration file
 def parse_ethereum(parser, section):
+    net_type = parser.get(section, 'type')
+    assert net_type == 'ethereum'
+
+    url = parser.get(section, 'url')
+    port = None
+    try:
+        port = parser.get(section, 'port')
+    except:
+        pass
+    path = url
+    if port:
+        path += ':' + str(port)
+    minter = Web3.toChecksumAddress(parser.get(section, 'minter'))
+    contract_address = Web3.toChecksumAddress(parser.get(section, 'contract'))
+    abi_file = parser.get(section, 'contract_abi')
+    contract_abi = ''
+    try:
+        with open(abi_file) as json_file:
+            contract_abi = json.load(json_file)
+    except:
+        print("ERROR parsing smart contract ABI file for:", section , ". Error:", sys.exc_info()[0])
+        exit(-1)
+    private_key = None
+    try:
+        private_key = parser.get(section, 'private_key')
+    except:
+        pass
+    
+    password = None
+    try:
+        password = parser.get(section, 'password')
+    except:
+        pass
+
+    return (minter, contract_address, contract_abi, url, port, private_key, password)
+
+# Helper function to read KSI related options from configuration file
+def parse_ksi(parser, section):
+    net_type = parser.get(section, 'type')
+    assert net_type == 'ksi'
+    
     # Read data
     url = parser.get(section, 'url')
-    port = parser.get(section, 'port')
-    path = url + ':' + port
-    minter = parser.get(section, 'minter')
-    address = parser.get(section, 'contract') 
-    abi = ""
-    with open(tokenContractFile) as obj:
-        jsn = json.load(obj)
-        abi = jsn["abi"]
-
-    # Init web3
-    web3 = Web3(Web3.HTTPProvider(path))
-    # Get contract
-    contract = web3.eth.contract(abi=abi, address=address)
-
-    return (minter, contract, url, port)
+    hash_algorithm = parser.get(section, 'hash_algorithm')
+    username = parser.get(section, 'username')
+    password = parser.get(section, 'password')
+    
+    return (url, hash_algorithm, username, password)
 
 
 # Helper function to build a left to right interledger
+# Note: KSI is only supported as destination ledger
 def left_to_right_bridge(parser, left, right):
 
     initiator = None
@@ -37,28 +70,33 @@ def left_to_right_bridge(parser, left, right):
 
     # Left ledger
     if ledger_left == "ethereum":
-        (minter, contract, url, port) = parse_ethereum(parser, left)
+        (minter, contract_address, contract_abi, url, port, private_key, password) = parse_ethereum(parser, left)
         # Create Initiator
-        initiator = EthereumInitiator(minter, contract, url, port)
+        initiator = EthereumInitiator(minter, contract_address, contract_abi, url, port, private_key, password)
 
     else:
-        print(f"WARNING: ledger type {ledger_left} not supported yet")
+        print(f"ERROR: ledger type {ledger_left} not supported yet")
         exit(1)
     
     # Right ledger
     if ledger_right == "ethereum":
-        (minter, contract, url, port) = parse_ethereum(parser, right)
+        (minter, contract_address, contract_abi, url, port, private_key, password) = parse_ethereum(parser, right)
         # Create Responder
-        responder = EthereumResponder(minter, contract, url, port)
+        responder = EthereumResponder(minter, contract_address, contract_abi, url, port, private_key, password)
+        
+    elif ledger_right == "ksi":
+        (url, hash_algorithm, username, password) = parse_ksi(parser, right)
+        responder = KSIResponder(url, hash_algorithm, username, password)
 
     else:
-        print(f"WARNING: ledger type {ledger_right} not supported yet")
+        print(f"ERROR: ledger type {ledger_right} not supported yet")
         exit(1)
 
     return (initiator, responder)
 
 
 # Helper function to build a right to left interledger
+# Note: KSI is only supported as destination ledger
 def right_to_left_bridge(parser, left, right):
 
     initiator = None
@@ -68,22 +106,26 @@ def right_to_left_bridge(parser, left, right):
     
     # Right ledger
     if ledger_right == "ethereum":
-        (minter, contract, url, port) = parse_ethereum(parser, right)
+        (minter, contract_address, contract_abi, url, port, private_key, password) = parse_ethereum(parser, right)
         # Create Initiator
-        initiator = EthereumInitiator(minter, contract, url, port)
+        initiator = EthereumInitiator(minter, contract_address, contract_abi, url, port, private_key, password)
 
     else :
-        print(f"WARNING: ledger type {ledger_right} not supported yet")
+        print(f"ERROR: ledger type {ledger_right} not supported yet")
         exit(1)
 
     # Left ledger
     if ledger_left == "ethereum":
-        (minter, contract, url, port) = parse_ethereum(parser, left)
+        (minter, contract_address, contract_abi, url, port, private_key, password) = parse_ethereum(parser, left)
         # Create Responder
-        responder = EthereumResponder(minter, contract, url, port)
+        responder = EthereumResponder(minter, contract_address, contract_abi, url, port, private_key, password)
+        
+    elif ledger_left == "ksi":
+        (url, hash_algorithm, username, password) = parse_ksi(parser, left)
+        responder = KSIResponder(url, hash_algorithm, username, password)
 
     else :
-        print(f"WARNING: ledger type {ledger_left} not supported yet")
+        print(f"ERROR: ledger type {ledger_left} not supported yet")
         exit(1)
 
     return (initiator, responder)
@@ -93,7 +135,7 @@ def main():
     
     # Parse command line iput 
     if len(sys.argv) <= 1:
-        print("WARNING: Provide a *.cfg config file to initialize Interledger")
+        print("ERROR: Provide a *.cfg config file to initialize Interledger")
         exit(1)
 
     parser = ConfigParser()
@@ -132,7 +174,7 @@ def main():
         interledger_right_to_left = Interledger(initiator_rl, responder_rl)
 
     else:
-        print("WARNING: supported 'direction' values are 'left-to-right', 'right-to-left' or 'both'")
+        print("ERROR: supported 'direction' values are 'left-to-right', 'right-to-left' or 'both'")
         print("Check your configuration file")
         exit(1)
 

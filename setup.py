@@ -7,7 +7,7 @@ setup(
         'Template implementation of the SOFIE project\'s '
         'Interledger component'
     ),
-    url='https://github.com/SOFIE-project/interledger-asset-transfer',
+    url='https://github.com/SOFIE-project/Interledger',
     author='SOFIE Project',
     author_email='sofie-offer-interledger@sofie-iot.eu',
     license='APL 2.0',
@@ -16,6 +16,7 @@ setup(
     install_requires=[
         'web3',
         'sqlalchemy',
+        'requests',
     ],
     tests_require=['pytest', 'pytest-asyncio'],
     zip_safe=False
