@@ -53,7 +53,7 @@ Figure 2: using the Interledger module
 
 On some ledgers (e.g. Ethereum), the Interledger communicates with a smart contract on the ledger (so an [interface](/doc/Interledger_internals.rst#ledger-interfaces) for the smart contract is provided), while on others (e.g. KSI), no smart contract is required (or even available) and the Interledger communicates with the ledger directly.
 
-The ability to act as the Initiator smart contract or the Responder smart contract is normally included in the application logic, but a separate proxy contracts can also be used as wrappers to interface with the Interledger module as has been done e.g. in the [Food Supply Chain pilot](https://media.voog.com/0000/0042/0957/files/sofie-onepager-food_final.pdf).
+The ability to act as the Initiator smart contract or the Responder smart contract is normally included in the application logic, but a separate proxy contracts can also be used as wrappers to interface with the Interledger module as has been done e.g. in the [Food Supply Chain pilot](https://media.voog.com/0000/0042/0957/files/sofie-onepager-food_final.pdf) (see the [smart contracts](https://github.com/orgs/SOFIE-project/projects/1) for details). 
 
 More details of the Interledger component's implementation can be found in the [Technical description](/doc/Interledger_internals.rst).
 
