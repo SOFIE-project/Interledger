@@ -295,7 +295,7 @@ A documentation file including the information provided by this readme, docs for
 ### Requirements
 - Install dependencies for generating documentation:
 ```bash
-pip install sphinx m2r sphinxcontrib-httpdomain sphinxcontrib-soliditydomain sphinxcontrib-seqdiag
+pip install 'sphinx<3.0.0' m2r sphinxcontrib-httpdomain sphinxcontrib-soliditydomain sphinxcontrib-seqdiag
 ```
 
 - Solidity
