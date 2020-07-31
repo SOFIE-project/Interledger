@@ -26,7 +26,7 @@ module.exports = function(deployer, network, accounts) {
     if(network == "development") {
 
       await deployer.deploy(Migrations);
-      token = await deployer.deploy(GameToken, "GameToken", "GAME", {'from': alice});
+      const token = await deployer.deploy(GameToken, "GameToken", "GAME", {'from': alice});
     }
     
     // Since ganache needs to be restarted every time, the deployed contract address will 
@@ -36,12 +36,14 @@ module.exports = function(deployer, network, accounts) {
         network == "compose_left" || network == "compose_right") {
 
       await deployer.deploy(Migrations);
-      token = await deployer.deploy(GameToken, "GameToken", "GAME", {'from': alice});
+      const token = await deployer.deploy(GameToken, "GameToken", "GAME", {'from': alice});
 
+      base_path = "solidity/contracts/";
       const config = ini.parse(fs.readFileSync('../local-config.cfg', 'utf-8'));
       net_config = config[network]
       net_config.minter = alice
       net_config.contract = token.address
+      net_config.contract_abi = base_path + "GameToken.abi.json";
 
       const iniText = ini.stringify(config);
       fs.writeFileSync('../local-config.cfg', iniText);

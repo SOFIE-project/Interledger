@@ -8,10 +8,10 @@ migrate:
 migrate-both: migrate-left migrate-right
 
 migrate-left:
-	cd solidity && npx truffle migrate --reset --network left
+	cd solidity && npx truffle migrate --reset --f 6 --to 6 --network left
 
 migrate-right:
-	cd solidity && npx truffle migrate --reset --network right
+	cd solidity && npx truffle migrate --reset --f 6 --to 6 --network right
 
 test-contracts:
 	cd solidity && npx truffle test

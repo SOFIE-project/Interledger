@@ -18,15 +18,26 @@ States.db
 
 # virtualenv
 il-dev/
+il-dev2/
 
 # vscode
 .vscode
 
-# temp shadow fabric
-/fabric/
-
 # credentials
 play-rinkeby.cfg
+
+# playground files
+playground/
+
+# HyperLedger Fabric binaries
+fabric/bin/
+fabric/chaincode/src/data_receiver/data_receiver
+fabric/chaincode/src/data_receiver/go.mod
+fabric/chaincode/src/data_receiver/go.sum
+fabric/chaincode/src/data_sender/data_sender
+fabric/chaincode/src/data_sender/go.mod
+fabric/chaincode/src/data_sender/go.sum
+
 
 # shadow docs draft
 README_draft.md

@@ -1,3 +1,6 @@
+var HDWalletProvider = require("truffle-hdwallet-provider");
+const MNEMONIC = 'YOUR WALLET KEY';
+
 module.exports = {
   // You can also follow this format for other networks;
   // see <http://truffleframework.com/docs/advanced/configuration>
@@ -24,17 +27,24 @@ module.exports = {
       port: 7546,
       network_id: "*"
     },
-	// for Docker Compose setup
-	compose_left: {
-      host: "ganache_left",
-      port: 7545,
-      network_id: "*"
-	},
-	compose_right: {
-      host: "ganache_right",
-      port: 7545,
-      network_id: "*"
-	},
+    rinkeby: {
+      provider: function() {
+        return new HDWalletProvider(MNEMONIC, "https://rinkeby.infura.io/YOUR_API_KEY")
+      },
+      network_id: 3,
+      gas: 4000000      //make sure this gas allocation isn't over 4M, which is the max
+    },
+    // for Docker Compose setup
+    compose_left: {
+        host: "ganache_left",
+        port: 7545,
+        network_id: "*"
+    },
+    compose_right: {
+        host: "ganache_right",
+        port: 7545,
+        network_id: "*"
+    },
   },
   compilers: {
     solc: {

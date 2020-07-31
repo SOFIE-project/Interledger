@@ -26,13 +26,17 @@ In order to use the Interledger component, *InterledgerSenderInterface* and *Int
 .. _contracts: ../solidity/contracts
 
 
-The example implementations of ledger interfaces include `DataTransceiver`_ and `GameToken`_. The detailed description about how the Interledger component is using ledger interfaces follows in `Detailed Overview of Interledger Protocol`_ section.
+The example implementations of ledger interfaces include `DataTransceiver`_, `GameToken`_, and `HTLCEth`_. The detailed description about how the Interledger component is using ledger interfaces follows in `Detailed Overview of Interledger Protocol`_ section.
 
 .. _DataTransceiver: ../solidity/contracts/DataTransceiver.sol
 
 .. _GameToken: ../solidity/contracts/GameToken.sol
 
+.. _HTLCEth: ../solidity/contracts/HTLCEth.sol
 
+The example implementations of ledger interfaces for Hyperledger Fabric are found under  `chaincode`_ folder.
+
+.. _chaincode: ../fabric/chaincode/src
 
 Sender Interface
 ================

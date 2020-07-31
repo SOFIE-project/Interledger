@@ -1,12 +1,12 @@
 from configparser import ConfigParser
-from enum import Enum, auto
 from cmd import Cmd
 import sys
 import time
-import web3
-from eth_abi import encode_single, decode_single
 import json
 import random
+
+import web3
+from eth_abi import encode_single, decode_single
 
 # CLI app to test Interledger interactively
 # The app connects to two ethereum instances, whose connection data are provided 
@@ -90,12 +90,13 @@ def init_web3(parser, section, label):
         ledger["endpoint"] = endpoint
         ledger["minter"] = parser.get(section, "minter")
         ledger["contract_address"] = parser.get(section, "contract")
-        ledger["contract"] = ledger["web3"].eth.contract(abi=abi, address=ledger["contract_address"])
+        ledger["contract"] = ledger["web3"].eth.contract(abi=abi, 
+                                                         address=ledger["contract_address"])
 
         return ledger
     else:
         print("ERROR Not connected to : ", endpoint)
-        exit(1)
+        sys.exit(1)
 
 
 
@@ -144,9 +145,9 @@ def send_transaction(ledger: dict, from_address: str,
     
     # tokenId is second argument for mint, encoded second argument for
     # interledgerReceive, and first argument for other functions
-    if function_name is "mint":
+    if function_name == "mint":
         tokenId = arguments[1]
-    elif function_name is "interledgerReceive": # tokenId is decoded 
+    elif function_name == "interledgerReceive": # tokenId is encoded 
         tokenId = decode_single('uint256', arguments[1])
     else:
         tokenId = arguments[0]
@@ -156,7 +157,7 @@ def send_transaction(ledger: dict, from_address: str,
     
     try:
         # use call() for getStateOfToken
-        if function_name is "getStateOfToken":
+        if function_name == "getStateOfToken":
             state = ledger["contract"].functions.getStateOfToken(arguments[0]).call()
             return state
         else:
@@ -165,7 +166,7 @@ def send_transaction(ledger: dict, from_address: str,
             receipt = ledger["web3"].eth.waitForTransactionReceipt(tx_hash)
                 
     except web3.exceptions.TimeExhausted as e :
-        print(f"Timeout error during {fuction_name} in {ledger['endpoint']}")
+        print(f"Timeout error during {function_name} in {ledger['endpoint']}")
 
     except ValueError as e:
         d = eval(e.__str__())
@@ -215,13 +216,13 @@ class CliDemo(Cmd):
             return False 
 
     # exit on 'q' input
-    def default(self, input):
-        if input == 'q':
-            return self.do_exit(input)
+    def default(self, line):
+        if line == 'q':
+            return self.do_exit(line)
  
-        super().default(self, input)
+        super().default(line)
     
-    def do_exit(self, input):
+    def do_exit(self, line):
         '''exit the application.'''
         print("Exiting...")
         return True
@@ -235,16 +236,16 @@ class CliDemo(Cmd):
     do_quit = do_exit
     help_quit = help_exit
     
-    def do_mint(self, input):
+    def do_mint(self, line):
         """mint <tokenId: int> <tokenURI: str> <assetName: str>
         
         Mints new token with tokenId, tokenURI and assetName. 
         New token is activated in the left ledger.
         """
 
-        args = input.split()
+        args = line.split()
         
-        if len(args) is not 3:
+        if len(args) != 3:
             print("mint command needs 3 parameters")
             return
         
@@ -269,7 +270,7 @@ class CliDemo(Cmd):
         
         # check the state
         state_left = send_transaction(self.ledgers[LEFT_LABEL], self.ledgers[LEFT_LABEL]["minter"], 
-                         "getStateOfToken", [tokenId], True)
+                                      "getStateOfToken", [tokenId], True)
         assert state_left == 2
         
         print(f"""Token info:
@@ -282,16 +283,16 @@ class CliDemo(Cmd):
         """)
 
         
-    def do_transfer_out(self, input):
+    def do_transfer_out(self, line):
         """transfer_out <ledger: str> <tokenId: int>
         
         Sets the state of token in specified ledger to \"Transfer Out\".
         This initiates the Interledger process.
         """
 
-        args = input.split()
+        args = line.split()
 
-        if len(args) is not 2:
+        if len(args) != 2:
             print("transfer_out command needs 2 parameters")
             return
 
@@ -308,7 +309,7 @@ class CliDemo(Cmd):
         
     def complete_transfer_out(self, text, line, start_index, end_index):
         # show all ledgers in the beginning
-        if len(line[:end_index].split()) is 1:
+        if len(line[:end_index].split()) == 1:
             return [i for i in self.allowed_ledgers]
         
         if len(line[start_index:].split()) > 0:
@@ -321,18 +322,18 @@ class CliDemo(Cmd):
             return
         
         # Only enable ledger autocomplete for first argument 
-        if start_index is len("transfer_out") + 1:
+        if start_index == len("transfer_out") + 1:
             return [i + ' ' for i in self.allowed_ledgers
                     if (i.startswith(current_word) and i is not current_word)]
 
         first_arg = line.split()[1]
         
         # show all tokens after first argument
-        if len(line) is start_index and len(line.split()) is 2:
+        if len(line) == start_index and len(line.split()) == 2:
             return [i for i in self.tokens.keys()]
 
         # Eable token autocomplete for second argument
-        if start_index is len("transfer_out") + len(first_arg) + 2:
+        if start_index == len("transfer_out") + len(first_arg) + 2:
             values = []
             for t in self.tokens.keys():
                 if t.startswith(current_word):
@@ -346,15 +347,15 @@ class CliDemo(Cmd):
             return values
 
 
-    def do_state_of(self, input):
+    def do_state_of(self, line):
         """state_of <tokenId: int>
         
         Prints the state of the token in both ledgers.
         """
 
-        args = input.split()
+        args = line.split()
 
-        if len(args) is not 1:
+        if len(args) != 1:
             print("state_of command needs 1 parameter")
             return
 
@@ -373,7 +374,7 @@ class CliDemo(Cmd):
         
     def complete_state_of(self, text, line, start_index, end_index):
         # show all tokens in the beginning
-        if len(line) is start_index and len(line.split()) is 1:
+        if len(line) == start_index and len(line.split()) == 1:
             return [i for i in self.tokens.keys()]
 
         if len(line[start_index:].split()) > 0:
@@ -400,7 +401,7 @@ class CliDemo(Cmd):
             return values
 
     
-    def do_example_run(self, input):
+    def do_example_run(self, line):
         """example_run
             
         Runs an example consisting of:
@@ -448,9 +449,11 @@ class CliDemo(Cmd):
 
         time.sleep(1)
 
-        state_left = send_transaction(self.ledgers[LEFT_LABEL], self.ledgers[LEFT_LABEL]["minter"], 
+        state_left = send_transaction(self.ledgers[LEFT_LABEL], 
+                                      self.ledgers[LEFT_LABEL]["minter"], 
                                       "getStateOfToken", [tokenId])
-        state_right = send_transaction(self.ledgers[RIGHT_LABEL], self.ledgers[RIGHT_LABEL]["minter"], 
+        state_right = send_transaction(self.ledgers[RIGHT_LABEL], 
+                                       self.ledgers[RIGHT_LABEL]["minter"], 
                                        "getStateOfToken", [tokenId])
         print(f"\tState of token {tokenId} in ledger left: *{STATE_MAP[state_left]}*")
         print(f"\tState of token {tokenId} in ledger right: *{STATE_MAP[state_right]}*")
@@ -462,9 +465,11 @@ class CliDemo(Cmd):
 
         #time.sleep(1)
         
-        state_left = send_transaction(self.ledgers[LEFT_LABEL], self.ledgers[LEFT_LABEL]["minter"], 
+        state_left = send_transaction(self.ledgers[LEFT_LABEL], 
+                                      self.ledgers[LEFT_LABEL]["minter"], 
                                       "getStateOfToken", [tokenId])
-        state_right = send_transaction(self.ledgers[RIGHT_LABEL], self.ledgers[RIGHT_LABEL]["minter"], 
+        state_right = send_transaction(self.ledgers[RIGHT_LABEL], 
+                                       self.ledgers[RIGHT_LABEL]["minter"], 
                                        "getStateOfToken", [tokenId])
         print(f"\tState of token {tokenId} in ledger left: *{STATE_MAP[state_left]}*")
         print(f"\tState of token {tokenId} in ledger right: *{STATE_MAP[state_right]}*")
@@ -477,10 +482,11 @@ class CliDemo(Cmd):
                                           self.ledgers[LEFT_LABEL]["minter"], 
                                           "getStateOfToken", [tokenId])
             if state_left == 0:
-                break;
+                break
             time.sleep(1)
             
-        state_right = send_transaction(self.ledgers[RIGHT_LABEL], self.ledgers[RIGHT_LABEL]["minter"], 
+        state_right = send_transaction(self.ledgers[RIGHT_LABEL], 
+                                       self.ledgers[RIGHT_LABEL]["minter"], 
                                        "getStateOfToken", [tokenId])
         print(f"\tState of token {tokenId} in ledger left: *{STATE_MAP[state_left]}*")
         print(f"\tState of token {tokenId} in ledger right: *{STATE_MAP[state_right]}*")
@@ -489,7 +495,7 @@ class CliDemo(Cmd):
 def main():
     if len(sys.argv) <= 1:
         print("ERROR: Provide a *.cfg config file as an argument to run the demo")
-        exit(1)
+        sys.exit(1)
         
     ledgers = setup_ledgers(sys.argv[1])
     CliDemo(ledgers).cmdloop()

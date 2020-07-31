@@ -15,17 +15,20 @@ def test_interledger_init():
     assert interledger.responder == resp
     assert len(interledger.transfers) == 0
     assert len(interledger.transfers_sent) == 0
-    assert interledger.pending == 0
-    assert interledger.keep_running == True    
+    assert len(interledger.results_committing) == 0
+    assert len(interledger.results_commit) == 0
+    assert len(interledger.results_aborting) == 0
+    assert len(interledger.results_abort) == 0
+    assert interledger.up == False 
 
 
 def test_interledger_stop():
     
     interledger = Interledger(None, None)
-
     interledger.stop()
 
-    assert interledger.keep_running == False
+    assert interledger.up == False
+
 
 def return_transfer_list():
 
@@ -33,12 +36,15 @@ def return_transfer_list():
     t2 = Transfer()
     t3 = Transfer()
     t4 = Transfer()
+    t5 = Transfer()
 
+    # t1 is State.ready by default
     t2.state = State.SENT
     t3.state = State.RESPONDED
-    t4.state = State.FINALIZED
+    t4.state = State.CONFIRMING
+    t5.state = State.FINALIZED
 
-    return [t1, t2, t3, t4]
+    return [t1, t2, t3, t4, t5]
 
 
 
@@ -52,5 +58,5 @@ def test_interledger_cleanup():
 
     interledger.cleanup()
 
-    assert len(interledger.transfers) is 3
-    assert len(interledger.transfers_sent) is 3
+    assert len(interledger.transfers) is 4
+    assert len(interledger.transfers_sent) is 5

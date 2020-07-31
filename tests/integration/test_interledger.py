@@ -30,10 +30,10 @@ class MockInitiator:
         return result
     
     async def commit_sending(self, id: str):
-        return True
+        return {"commit_status": True, "commit_tx_hash" : '0x111'}
 
     async def abort_sending(self, id: str, reason: int):
-        return False
+         return {"abort_status": True, "abort_tx_hash" : '0x222'}
 
 
 # Responder which getting positive result
@@ -88,7 +88,6 @@ async def test_interledger_receive_transfer():
 #
 # Test send_transfer
 #
-
 @pytest.mark.asyncio
 async def test_interledger_send_transfer():
 
@@ -104,14 +103,14 @@ async def test_interledger_send_transfer():
     assert task.done() == False
     await task
 
-    assert i.pending == 1
-
+    assert len(i.transfers_sent) == 1
+ 
     tr = i.transfers[0]
     assert tr.state == State.SENT
-    assert asyncio.isfuture(tr.future)
+    assert asyncio.isfuture(tr.send_task)
 
-    await tr.future
-    assert tr.future.done() == True
+    await tr.send_task
+    assert tr.send_task.done() == True
 
 #
 # Test transfer_result
@@ -126,14 +125,16 @@ async def test_interledger_transfer_result():
     
     t = Transfer()
     t.state = State.SENT
-    t.future = asyncio.ensure_future(foo())
+    t.send_task = asyncio.ensure_future(foo())
     i.transfers_sent = [t]
     
     task = asyncio.ensure_future(i.transfer_result())
     assert task.done() == False
     await task
 
-    tr = i.transfers_sent[0]
+    assert len(i.transfers_sent) == 0
+    assert len(i.transfers_responded) == 1
+    tr = i.transfers_responded[0]
     assert tr.state == State.RESPONDED
     assert tr.result == 42
 
@@ -142,8 +143,6 @@ async def test_interledger_transfer_result():
 # Test transfer_result with a commit
 #  - need ad-hoc commit future
 #
-
-
 @pytest.mark.asyncio
 async def test_interledger_process_result_commit():
 
@@ -154,23 +153,23 @@ async def test_interledger_process_result_commit():
     t.payload['id'] = str(uuid4().int)
     t.state = State.RESPONDED
     t.result = {"status": True}
-    i.transfers_sent = [t]
-    i.pending = 1
-    
+    i.transfers_responded = [t]
+
     task = asyncio.ensure_future(i.process_result())
     assert task.done() == False
     await task
 
-    tr = i.transfers_sent[0]
-    assert tr.state == State.FINALIZED
-    assert len(i.results_commit) == 1
+    tr = i.results_committing[0]
+    assert tr.state == State.CONFIRMING
+    assert tr.result['status'] == True
+    assert len(i.results_commit) == 0
     assert len(i.results_abort) == 0
-    assert i.pending == 0
+    
+    assert len(i.transfers_responded) == 0
 
 #
 # Test transfer_result with an abort
 #
-
 @pytest.mark.asyncio
 async def test_interledger_process_result_abort():
 
@@ -181,19 +180,85 @@ async def test_interledger_process_result_abort():
     t.payload['id'] = str(uuid4().int)
     t.state = State.RESPONDED
     t.result = {"status": False}
-    i.transfers_sent = [t]
-    i.pending = 1
+    i.transfers_responded = [t]
     
     task = asyncio.ensure_future(i.process_result())
     assert task.done() == False
     await task
 
-    tr = i.transfers_sent[0]
-    assert tr.state == State.FINALIZED
+    tr = i.results_aborting[0]
+    assert tr.state == State.CONFIRMING
+    assert tr.result['status'] == False
     assert len(i.results_commit) == 0
-    assert len(i.results_abort) == 1
-    assert i.pending == 0
+    assert len(i.results_abort) == 0
 
+    assert len(i.transfers_responded) == 0
+
+
+#
+# Test confirm_transfer with a commit
+#
+@pytest.mark.asyncio
+async def test_interledger_confirm_transfer_commit():
+    async def foo():
+        return {'commit_status': True,
+                'commit_tx_hash': '0x333'}
+
+    i = Interledger(MockInitiator([]), MockResponder())
+
+    t = Transfer()
+    t.payload = {}
+    t.payload['id'] = str(uuid4().int)
+    t.result = {}
+    t.state = State.CONFIRMING
+    t.confirm_task = asyncio.ensure_future(foo())
+    i.results_committing = [t]
+    
+    task = asyncio.ensure_future(i.confirm_transfer())
+    assert task.done() == False
+    await task
+
+    res = i.results_commit[0]
+    assert t.state == State.FINALIZED
+    assert res['commit_status'] == True
+    assert res['commit_tx_hash'] == '0x333'
+    assert len(i.results_commit) == 1
+    assert len(i.results_abort) == 0
+
+    assert len(i.results_committing) == 0
+
+
+#
+# Test confirm_transfer with an abort
+#
+@pytest.mark.asyncio
+async def test_interledger_confirm_transfer_abort():
+    async def foo():
+        return {'abort_status': True,
+                'abort_tx_hash': '0x444'}
+
+    i = Interledger(MockInitiator([]), MockResponder())
+
+    t = Transfer()
+    t.payload = {}
+    t.payload['id'] = str(uuid4().int)
+    t.result = {}
+    t.state = State.CONFIRMING
+    t.confirm_task = asyncio.ensure_future(foo())
+    i.results_aborting = [t]
+    
+    task = asyncio.ensure_future(i.confirm_transfer())
+    assert task.done() == False
+    await task
+
+    res = i.results_abort[0]
+    assert t.state == State.FINALIZED
+    assert res['abort_status'] == True
+    assert res['abort_tx_hash'] == '0x444'
+    assert len(i.results_abort) == 1
+    assert len(i.results_commit) == 0
+
+    assert len(i.results_aborting) == 0
 
 # ##############################
 
@@ -239,15 +304,16 @@ async def test_interledger_run_no_cleanup():
         # Consume l3, but with a responder returning False -> abort
         await asyncio.sleep(time)   # Simulate interledger running
 
-        i.stop()
-        await task
-
         assert len(i.transfers) == 12
-        assert len(i.transfers_sent) == 12
+        assert len(i.transfers_sent) == 0
+        assert len(i.transfers_responded) == 0
+        assert len(i.results_committing) == 0
+        assert len(i.results_aborting) == 0
         assert len(i.results_commit) == 8
         assert len(i.results_abort) == 4
-        assert i.pending == 0
 
+        i.stop()
+        await task
 
 @pytest.mark.asyncio
 async def test_interledger_run_with_cleanup():
@@ -283,8 +349,13 @@ async def test_interledger_run_with_cleanup():
     # Consume l3, but with a responder returning False -> abort
     await asyncio.sleep(time)   # Simulate interledger running
 
-    i.stop()
-    await task
-
     assert len(i.transfers) == 0
     assert len(i.transfers_sent) == 0
+    assert len(i.transfers_responded) == 0
+    assert len(i.results_committing) == 0
+    assert len(i.results_aborting) == 0
+    assert len(i.results_commit) == 8
+    assert len(i.results_abort) == 4
+
+    i.stop()
+    await task

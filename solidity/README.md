@@ -1,58 +1,49 @@
-# Solidity smart contracts
+# Interledger Solidity smart contracts
 
-The smart contracts in this repositories are:
-- **AssetTransferInterface.sol**: The interface for the contract states in the asset transfer protocol of the Interledger component;
-- **GameToken.sol**: A ERC721 token implementing the interface above for the asset transfer protocol. Note, `tokenId` corresponds to the ERC token id specification AND to the `assetId` of the interledger protocol. **In other words, the ERC implementation uses the token ids as ids for the IL asset transfer protocol.** _This contract follows the specifications of the SOFIE gaming pilot. In that case the id of the token (uint) is different from the id of the asset (string or bytes32), but both are unique._
+## Installation
 
+You can simply install dependencies with the command below:
 
-## Getting started
-
-If you are not familiar with the Truffle framework, plase [see this page](https://www.trufflesuite.com/truffle).
-
-Getting started with truffle
-
-```bash
-# Install tools
-npm install -g ganache-cli
-
-# Install truffle *locally* and dependencies
-npm install
+```
+$ npm install
 ```
 
-### Test the contracts
-    truffle test
+NodeJS 5.0+ is recommended for the installation of Truffle.
 
-or, using the Makefile:
+## Compilation
 
-    cd ..
-    make test-contracts
+You can compile the contracts with the following command:
 
-### DEMO: Local deployment with two Ethereum instances
+```
+$ npx truffle compile
+```
+It will create the required json files within the build directory.
 
-**Requires: npm ini module**: [ini](https://www.npmjs.com/package/ini)
+You might need to remove the previous build directory beforehand:
 
-> **Use case** You want to deploy the contracts in one or two Ethereum **local** networks. 
+```
+$ rm -r build/
+```
 
-1 - Open two instances of Ganache at port  `8545` and `7545` respectively.
+## Migration
 
-    ganache-cli -p 8545
-    ganache-cli -p 7545
+Then you can run migration files using the below command:
 
-The `truffle-config.js` provides two local networks targets, `ganache8545` and `ganache7545`, to connect the migration script to such ports. [See Truffle's page](https://www.trufflesuite.com/docs/truffle/reference/configuration#networks) for more info.
+```
+$ npx truffle migrate
+```
 
-During the [migration](./migrations/1_initial_migration.js), [the ERC721 token](./contracts/GameToken.sol) will be deployed in the target network. 
+## Testing
 
-2 - Execute migrations:
+Finally you can run tests using truffle internal network using the following command:
 
-    truffle migrate --reset --network ganache8545
-    truffle migrate --reset --network ganache7545
+```
+$ npx truffle test
+```
+Also, you can run tests using external networks (e.g ganache) using the following command:
 
-or, using the Makefile:
+```
+$ npx truffle test --network ganache 
+```
 
-    cd ..
-    make migrate-8545
-    make migrate-7545
-
-will deploy a GameToken contract in each network.
-
-Moreover, the migration script modifies `../local-config.cfg` configuration file with the address of the contract (`address`) and of the contract creator (`minter`) related to the target network. These fields will be used by the [interledger execution script](../start_interledger.py) and the [CLI demo application](../demo/cli/cli.py).
+Please check the ``` truffle-config.js ``` file for more information about network setting. 

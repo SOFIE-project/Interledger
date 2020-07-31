@@ -44,7 +44,7 @@ async def test_responder_receive(config):
     w3 = Web3(Web3.HTTPProvider(url+":"+str(port)))
     token_instance = w3.eth.contract(abi=contract_abi, address=contract_address)
     # # Create a token
-    tokenId = create_token(contract_minter, token_instance, w3)
+    (tokenId,cost) = await create_token(contract_minter, token_instance, w3)
     assert token_instance.functions.getStateOfToken(tokenId).call() == 0
     ## Test Ethereum Responder ###
 
@@ -90,7 +90,7 @@ async def test_responder_receive_transaction_failure(config):
     w3 = Web3(Web3.HTTPProvider(url+":"+str(port)))
     token_instance = w3.eth.contract(abi=contract_abi, address=contract_address)
     # # Create a token
-    tokenId = create_token(contract_minter, token_instance, w3)
+    (tokenId,cost) = await create_token(contract_minter, token_instance, w3)
     assert token_instance.functions.getStateOfToken(tokenId).call() == 0
     ## Test Ethereum Responder ###
 
@@ -101,7 +101,9 @@ async def test_responder_receive_transaction_failure(config):
     result = await resp.send_data(nonce, data)
 
     assert result["status"] == False
+    assert result["tx_hash"] == None
     assert result["error_code"] == ErrorCode.TRANSACTION_FAILURE
+    assert result["message"].find('revert') >= 0
 
 
 
@@ -112,15 +114,15 @@ async def test_responder_receive_reject_event(config):
     w3 = Web3(Web3.HTTPProvider(url+":"+str(port)))
     token_instance = w3.eth.contract(abi=contract_abi, address=contract_address)
     # # Create a token
-    tokenId = create_token(contract_minter, token_instance, w3)
+    (tokenId,cost) = await create_token(contract_minter, token_instance, w3)
     assert token_instance.functions.getStateOfToken(tokenId).call() == 0
-    accept_token(contract_minter, token_instance, w3, tokenId)
+    await accept_token(contract_minter, token_instance, w3, tokenId)
     assert token_instance.functions.getStateOfToken(tokenId).call() == 2
     ## Test Ethereum Responder ###
 
     resp = EthereumResponder(contract_minter, contract_address, contract_abi, url, port=port)
 
-    #passing wrong tokenId to simulate transaction failure
+    #passing an asset with the wrong state to simulate emitting a reject event
     nonce = "42"
     data = encode_abi(['uint256'], [tokenId])
     result = await resp.send_data(nonce, data)

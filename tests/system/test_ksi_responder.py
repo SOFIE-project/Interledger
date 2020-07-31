@@ -25,7 +25,6 @@ def test_init(config):
     assert resp.hash_algorithm == hash_algorithm
     assert resp.username == username
     assert resp.password == password
-
     
 #
 # Test receive_transfer
@@ -53,4 +52,20 @@ async def test_responder_receive(config):
 
     assert ksi_request.status_code == 200
     assert result["status"] == True
+
+
+@pytest.mark.asyncio
+async def test_responder_receive_wrong_hash_algorithm(config):
+
+    (url, hash_algorithm, username, password) = setUp_ksi(config)
+
+    ### Test Ethereum Responder ###
+
+    resp = KSIResponder(url, hash_algorithm, username, password)
+    resp.hash_algorithm = 'dummy'
+    nonce, data = "42", b'dummy'
+    result = await resp.send_data(nonce, data)
+    
+    assert result["status"] == False
+    assert result["error_code"] == ErrorCode.UNSUPPORTED_KSI_HASH
 

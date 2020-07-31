@@ -20,15 +20,11 @@ async def test_interledger_with_two_ethereum(config):
     # set up ledgerA and ledgerB
     tokenId = uuid4().int
     (contract_minter_A, contract_address_A, contract_abi_A, url, portA) = setUp(config, 'left')
-    #(contract_minter_B, contract_address_B, contract_abi_B, url, portB) = setUp(config, 'right')
 
     w3_A = Web3(Web3.HTTPProvider(url+":"+str(portA)))
-    #w3_B = Web3(Web3.HTTPProvider(url+":"+str(portB)))
     token_instance_A = w3_A.eth.contract(abi=contract_abi_A, address=contract_address_A)
-    #token_instance_B = w3_B.eth.contract(abi=contract_abi_B, address=contract_address_B)
     
-    create_token(contract_minter_A, token_instance_A, w3_A, tokenId)
-    #create_token(contract_minter_B, token_instance_B, w3_B, tokenId)
+    (tokenId,cost) = await create_token(contract_minter_A, token_instance_A, w3_A, tokenId)
 
     (url_ksi, hash_algorithm, username, password) = setUp_ksi(config)
 
@@ -40,7 +36,6 @@ async def test_interledger_with_two_ethereum(config):
         # Create interledger with a bridge in direction from A to B
         print("Building Interledger bridge A -> B")
         inititator = EthereumInitiator(contract_minter_A, contract_address_A, contract_abi_A, url, port=portA)
-        #responder = EthereumResponder(contract_minter_B, contract_address_B, contract_abi_B, url, port=portB)
         responder = KSIResponder(url_ksi, hash_algorithm, username, password)
         interledger = Interledger(inititator, responder)
 
@@ -53,9 +48,9 @@ async def test_interledger_with_two_ethereum(config):
 
         # Activate token in ledgerA
 
-        accept_token(contract_minter_A, token_instance_A, w3_A, tokenId)
+        await accept_token(contract_minter_A, token_instance_A, w3_A, tokenId)
         assert token_instance_A.functions.getStateOfToken(tokenId).call() == 2
-        transfer_token(contract_minter_A, token_instance_A, w3_A, tokenId)
+        await transfer_token(contract_minter_A, token_instance_A, w3_A, tokenId)
         assert token_instance_A.functions.getStateOfToken(tokenId).call() == 1
        
         await asyncio.sleep(2) # Simulate Interledger running

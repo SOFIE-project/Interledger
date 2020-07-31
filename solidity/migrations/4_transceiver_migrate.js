@@ -22,16 +22,19 @@ module.exports = function(deployer, network) {
   deployer.then(async () => {
     
     // Since ganache needs to be restarted every time, the deployed contract address will 
-	// be different, therefore store the address of the contract to the configuration file
+	  // be different, therefore store the address of the contract to the configuration file
     if(network == "left" || network == "right" || 
 		network == "compose_left" || network == "compose_right") {
 
       await deployer.deploy(Migrations);
-      data_transceiver = await deployer.deploy(DataTransceiver);
+      const data_transceiver = await deployer.deploy(DataTransceiver);
 
       const config = ini.parse(fs.readFileSync('../local-config.cfg', 'utf-8'));
+
+      base_path = "solidity/contracts/";
       net_config = config[network]
       net_config.contract = data_transceiver.address
+      net_config.contract_abi = base_path + "DataTransceiver.abi.json";
 
       const iniText = ini.stringify(config);
       fs.writeFileSync('../local-config.cfg', iniText);

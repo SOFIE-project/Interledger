@@ -10,7 +10,7 @@ The SOFIE Interledger component supports atomic transfer of information between 
 Goal
 -----
 
-This example implements data transfer functionality between two Ethereum networks. Other types of ledgers can be utilised with simple configuration changes.
+This example implements data transfer functionality between two Ethereum networks. Other types of ledgers e.g. Hyperledger Fabric networks can be utilised with simple configuration changes.
 
 Design
 ------
@@ -26,6 +26,23 @@ A smart contact `DataSender`_ that implements the `InterledgerSenderInterface`_ 
     function emitData(bytes memory data) public {
         id += 1;
         emit InterledgerEventSending(id, data);
+    }
+
+A Hyperledger Fabric `DataSender-Fabric`_ chaincode for the same purpose includes the following:
+
+.. code-block::
+
+    // This is the application logic to emit data to another ledger via event, assumes the paramter below
+    // @param data encoded data content in byte string
+    func emitData(stub shim.ChaincodeStubInterface, args []string) error {
+        var id1 uint64
+        var data1 string
+        ...
+        data1 = args[0]
+        id1 += 1
+        ...
+	    _ = stub.SetEvent("InterledgerEventSending", payload_event)
+        ...
     }
 
 On the receiving ledger, a smart contract `DataReceiver`_ that implements the `interledgerReceiverInterface`_ is deployed to receive the incoming data payload:
@@ -45,9 +62,27 @@ On the receiving ledger, a smart contract `DataReceiver`_ that implements the `i
         emit InterledgerEventAccepted(nonce);
     }
 
+A Hyperledger Fabric `DataReceiver-Fabric`_ chaincode for the same purpose includes the following:
+
+.. code-block::
+
+    // This is the function to receive data from Interledger, which assumes the following parameters to be passed.
+    // @param nonce The unique identifier of data event
+    // @param data The actual data content encoded in byte string
+    func interledgerReceive(stub shim.ChaincodeStubInterface, args []string) error {
+        var nonce uint64
+        var data string
+        ...
+        stub.PutState("items", payload)
+        ...
+        _ = stub.SetEvent("InterledgerEventAccepted", nonce_bytes)
+        ...
+    }
 
 .. _DataSender: ../solidity/contracts/DataSender.sol
+.. _DataSender-Fabric: ../fabric/chaincode/src/data_sender/data_sender.go
 .. _DataReceiver: ../solidity/contracts/DataReceiver.sol
+.. _DataReceiver-Fabric: ../fabric/chaincode/src/data_receiver/data_receiver.go
 .. _InterledgerSenderInterface: ../solidity/contracts/InterledgerSenderInterface.sol
 .. _InterledgerReceiverInterface: ../solidity/contracts/InterledgerReceiverInterface.sol
 
@@ -82,6 +117,9 @@ After the `DataSender`_ and `DataReceiver`_ have been deployed in the respective
   contract=<contract_address>
   contract_abi=solidity/contracts/DataReceiver.abi.json
 
+For the corresponding Hyperledger Fabric chaincodes, please follow the adapter-specific documentation of `Fabric`_ for configuration and other details.
+
+.. _Fabric: ../doc/adapter-fabric.md
 
 Execution
 ---------
@@ -97,3 +135,7 @@ Interledger will then listen for the "InterledgerEventSending" event, and forwar
 2. Invoke the "emitData" method of the data sender (any suitable means can be used) to trigger the data transfer.
 
 3. The response events of "InterledgerEventAccepted" or "InterledgerEventRejected" and the storage of the incoming data can then be observed on the destination ledger.
+
+Note: for the data transfer between a Hyperledger Fabric and a Ethereum network in both directions, the detailed description is provided in `HF-ETH-Data-transfer-example`_.
+
+.. _HF-ETH-Data-transfer-example: ../doc/example-data-transfer-HF-ETH.md

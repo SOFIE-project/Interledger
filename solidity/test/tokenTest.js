@@ -15,6 +15,7 @@ contract("GameToken", accounts => {
     /////////////////
     const tokenId = 123;
     const tokenId2 = 321;
+    const abortReason = 42;
 
     const object1 = {id: "VorpalSword1",
                      uri: "game/weapons/"};
@@ -125,6 +126,27 @@ contract("GameToken", accounts => {
             assert.equal(await token.balanceOf(carl), 0, "Bob should have 0 tokens");
             assert.equal(await token.getAssetNameOfToken(tokenId), 0x0, "Token " + tokenId + " should be empty: 0x0");
         });
+    });
+
+
+    describe("Testing the aborting transfer of a token", function() {
+
+	it("Should mint a token and put it in trading mode On", async() => {
+
+	    let token = await Token.deployed();
+	    await token.mint(bob, tokenId, object1.uri, web3.utils.fromUtf8(object1.id));
+	    // The game puts the token Here
+	    await token.accept(tokenId, {from: alice});
+	    assert.equal(await token.getStateOfToken(tokenId), HERE, "token should have state "+HERE+": Here");
+
+	    // Transfer the token
+	    await token.transferOut(tokenId, {from: bob});
+	    assert.equal(await token.getStateOfToken(tokenId), TRANSFER_OUT, "token " + tokenId + " should have state "+TRANSFER_OUT+": TransferOut");
+            //abort transfering the token
+	    await token.interledgerAbort(tokenId, abortReason, {from: alice});
+	    assert.equal(await token.getStateOfToken(tokenId), HERE, "token should have state "+HERE+": Here");
+
+	});
     });
 
 });

@@ -1,11 +1,9 @@
-from configparser import ConfigParser
 import hashlib
 import base64
+
 import requests
-import json
 
 from .interfaces import Responder, ErrorCode, LedgerType
-from .interledger import Transfer
     
 # Responder implementation
 class KSIResponder(Responder):
@@ -64,9 +62,9 @@ class KSIResponder(Responder):
 
         else: # should not happen
             return {"status": False, 
-                "error_code": ErrorCode.UNSUPPORTED_KSI_HASH,
-                "message": "Wrong KSI hash algorithm",
-                "tx_hash": ""}
+                    "error_code": ErrorCode.UNSUPPORTED_KSI_HASH,
+                    "message": "Wrong KSI hash algorithm",
+                    "tx_hash": ""}
         
         h.update(data)
         hash_value = base64.b64encode(h.digest()).decode('ascii')
@@ -83,8 +81,8 @@ class KSIResponder(Responder):
         ksi_request = requests.post(self.url, json=request, auth=(self.username, self.password))
         
         if ((ksi_request.status_code == 200) and 
-            (ksi_request.json()['details']['dataHash'] == request['dataHash']) and 
-            (ksi_request.json()['verificationResult']['status'] == "OK")):
+                (ksi_request.json()['details']['dataHash'] == request['dataHash']) and 
+                (ksi_request.json()['verificationResult']['status'] == "OK")):
 
             # request was successful, return the id
             return {"status": True,
@@ -92,6 +90,6 @@ class KSIResponder(Responder):
         
         else: # some error happened
             return {"status": False, 
-                "error_code": ErrorCode.TRANSACTION_FAILURE,
-                "message": ksi_request.json(),
-                "tx_hash": ""}
+                    "error_code": ErrorCode.TRANSACTION_FAILURE,
+                    "message": ksi_request.json(),
+                    "tx_hash": ""}

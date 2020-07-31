@@ -76,6 +76,30 @@ contract=0x33d6fc7943D420a993B1314b7387a13c2bC475D5
 contract_abi=./solidity/contracts/DataTransceiver.abi.json
 ```
 
+- **password** the password of the minter account to sign transaction
+
+Similarly, the above option can be included in the configrations:
+
+```
+password=<password-of-minter-account>
+```
+
+With this configuration, the Ethereum adapter will try to unlock the minter account with password to sign a transaction.
+
+- **poa** boolean to indicate whether to enable the injection of PoA middleware
+
+For networks that supports Proof-of-Authority (PoA) standard, such as the Rinkeby test network, the above option can be included in the configurations to allow modification on the block data that has deviation from the Ethereum yellow paper specification. Example is simply given as:
+
+```
+poa=true
+```
+
+To facilitate the test, deployment to the public network is also enabled by using the truffle installed. Before that, one has to fill in the correct `MNEMONIC` and `API_KEY` in the `solidity/truffle-config.js` file. Here it is assumed that public test network `rinkeby` will be used, but one change that to the need.
+
+```
+npx truffle migrate --reset --network rinkeby
+```
+
 ## Usage
 The usage of the interledger component to interact with the Ethereum networks requires having the data sender or receiver which implement the `InterledgerSenderInterface` or `InterledgerReceiverInterface` properly deployed. With the sender and receiver set up, the interledger component can then be instantiated to connect to them. After that, by emitting the specifc event described above, the data payload can be transferred and observed accross the two ledgers via the component.
 

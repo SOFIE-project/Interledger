@@ -5,6 +5,7 @@ from configparser import ConfigParser
 from src.data_transfer.interledger import Interledger
 from src.data_transfer.ethereum import EthereumInitiator, EthereumResponder
 from src.data_transfer.ksi import KSIResponder
+from src.data_transfer.fabric import FabricInitiator, FabricResponder
 
 
 # Helper function to read Ethereum related options from configuration file
@@ -43,7 +44,13 @@ def parse_ethereum(parser, section):
     except:
         pass
 
-    return (minter, contract_address, contract_abi, url, port, private_key, password)
+    poa = None
+    try:
+        poa = parser.get(section, 'poa') in ('true', 'True')
+    except:
+        pass
+
+    return (minter, contract_address, contract_abi, url, port, private_key, password, poa)
 
 # Helper function to read KSI related options from configuration file
 def parse_ksi(parser, section):
@@ -59,6 +66,22 @@ def parse_ksi(parser, section):
     return (url, hash_algorithm, username, password)
 
 
+# Helper function to read HyperLedger Fabric related options from configuration file
+def parse_fabric(parser, section):
+    net_type = parser.get(section, 'type')
+    assert net_type == 'fabric'
+
+    # Read data
+    net_profile = parser.get(section, 'network_profile')
+    channel_name = parser.get(section, 'channel_name')
+    cc_name = parser.get(section, 'cc_name')
+    cc_version = parser.get(section, 'cc_version')
+    org_name = parser.get(section, 'org_name')
+    user_name = parser.get(section, 'user_name')
+    peer_name = parser.get(section, 'peer_name')
+
+    return (net_profile, channel_name, cc_name, cc_version, org_name, user_name, peer_name)
+
 # Helper function to build a left to right interledger
 # Note: KSI is only supported as destination ledger
 def left_to_right_bridge(parser, left, right):
@@ -68,25 +91,36 @@ def left_to_right_bridge(parser, left, right):
     ledger_left = parser.get(left, 'type')
     ledger_right = parser.get(right, 'type')
 
-    # Left ledger
+    # Left ledger with initiator
     if ledger_left == "ethereum":
-        (minter, contract_address, contract_abi, url, port, private_key, password) = parse_ethereum(parser, left)
+        (minter, contract_address, contract_abi, url, port, private_key, password, poa) = parse_ethereum(parser, left)
         # Create Initiator
-        initiator = EthereumInitiator(minter, contract_address, contract_abi, url, port, private_key, password)
+        initiator = EthereumInitiator(minter, contract_address, contract_abi, url, port, private_key, password, poa)
+
+    elif ledger_left == "fabric":
+        (net_profile, channel_name, cc_name, cc_version, org_name, user_name, peer_name) = parse_fabric(parser, left)
+        # Create Initiator
+        initiator = FabricInitiator(net_profile, channel_name, cc_name, cc_version, org_name, user_name, peer_name)
 
     else:
         print(f"ERROR: ledger type {ledger_left} not supported yet")
         exit(1)
     
-    # Right ledger
+    # Right ledger with responder
     if ledger_right == "ethereum":
-        (minter, contract_address, contract_abi, url, port, private_key, password) = parse_ethereum(parser, right)
+        (minter, contract_address, contract_abi, url, port, private_key, password, poa) = parse_ethereum(parser, right)
         # Create Responder
-        responder = EthereumResponder(minter, contract_address, contract_abi, url, port, private_key, password)
+        responder = EthereumResponder(minter, contract_address, contract_abi, url, port, private_key, password, poa)
         
     elif ledger_right == "ksi":
         (url, hash_algorithm, username, password) = parse_ksi(parser, right)
+        # Create Responder
         responder = KSIResponder(url, hash_algorithm, username, password)
+
+    elif ledger_right == "fabric":
+        (net_profile, channel_name, cc_name, cc_version, org_name, user_name, peer_name) = parse_fabric(parser, left)
+        # Create Responder
+        responder = FabricResponder(net_profile, channel_name, cc_name, cc_version, org_name, user_name, peer_name)
 
     else:
         print(f"ERROR: ledger type {ledger_right} not supported yet")
@@ -104,25 +138,35 @@ def right_to_left_bridge(parser, left, right):
     ledger_left = parser.get(left, 'type')
     ledger_right = parser.get(right, 'type')
     
-    # Right ledger
+    # Right ledger with initiator
     if ledger_right == "ethereum":
-        (minter, contract_address, contract_abi, url, port, private_key, password) = parse_ethereum(parser, right)
+        (minter, contract_address, contract_abi, url, port, private_key, password, poa) = parse_ethereum(parser, right)
         # Create Initiator
-        initiator = EthereumInitiator(minter, contract_address, contract_abi, url, port, private_key, password)
+        initiator = EthereumInitiator(minter, contract_address, contract_abi, url, port, private_key, password, poa)
+
+    elif ledger_right == "fabric":
+        (net_profile, channel_name, cc_name, cc_version, org_name, user_name, peer_name) = parse_fabric(parser, left)
+        # Create Initiator
+        initiator = FabricInitiator(net_profile, channel_name, cc_name, cc_version, org_name, user_name, peer_name)
 
     else :
         print(f"ERROR: ledger type {ledger_right} not supported yet")
         exit(1)
 
-    # Left ledger
+    # Left ledger with Responder
     if ledger_left == "ethereum":
-        (minter, contract_address, contract_abi, url, port, private_key, password) = parse_ethereum(parser, left)
+        (minter, contract_address, contract_abi, url, port, private_key, password, poa) = parse_ethereum(parser, left)
         # Create Responder
-        responder = EthereumResponder(minter, contract_address, contract_abi, url, port, private_key, password)
+        responder = EthereumResponder(minter, contract_address, contract_abi, url, port, private_key, password, poa)
         
     elif ledger_left == "ksi":
         (url, hash_algorithm, username, password) = parse_ksi(parser, left)
         responder = KSIResponder(url, hash_algorithm, username, password)
+
+    elif ledger_left == "fabric":
+        (net_profile, channel_name, cc_name, cc_version, org_name, user_name, peer_name) = parse_fabric(parser, left)
+        # Create Responder
+        responder = FabricResponder(net_profile, channel_name, cc_name, cc_version, org_name, user_name, peer_name)
 
     else :
         print(f"ERROR: ledger type {ledger_left} not supported yet")

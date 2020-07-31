@@ -22,7 +22,7 @@ async def test_responder_receive_timeout(config):
     (contract_minter, contract_address, contract_abi, url, port) = setUp(config, 'left')
     w3 = Web3(Web3.HTTPProvider(url+":"+str(port)))
     token_instance = w3.eth.contract(abi=contract_abi, address=contract_address)
-    tokenId = create_token(contract_minter, token_instance, w3)
+    (tokenId,cost) = await create_token(contract_minter, token_instance, w3)
     assert token_instance.functions.getStateOfToken(tokenId).call() == 0
     ### Test Ethereum Responder ###
     
@@ -44,11 +44,11 @@ async def test_initiator_abort_txerror(config):
     (contract_minter, contract_address, contract_abi, url, port) = setUp(config, 'left')
     w3 = Web3(Web3.HTTPProvider(url+":"+str(port)))
     token_instance = w3.eth.contract(abi=contract_abi, address=contract_address)
-    tokenId = create_token(contract_minter, token_instance, w3)
+    (tokenId,cost) = await create_token(contract_minter, token_instance, w3)
     assert token_instance.functions.getStateOfToken(tokenId).call() == 0
-    accept_token(contract_minter, token_instance, w3, tokenId)
+    await accept_token(contract_minter, token_instance, w3, tokenId)
     assert token_instance.functions.getStateOfToken(tokenId).call() == 2
-    transfer_token(contract_minter, token_instance, w3, tokenId)
+    await transfer_token(contract_minter, token_instance, w3, tokenId)
     assert token_instance.functions.getStateOfToken(tokenId).call() == 1
 
     reason = 3
@@ -60,8 +60,8 @@ async def test_initiator_abort_txerror(config):
     init.timeout = 0
     result = await init.abort_sending(str(tokenId), reason)
 
-    assert result["status"] == False
-    assert result["error_code"] == ErrorCode.TIMEOUT
+    assert result["abort_status"] == False
+    assert result["abort_error_code"] == ErrorCode.TIMEOUT
 
 
 @pytest.mark.asyncio
@@ -72,11 +72,11 @@ async def test_initiator_commit_txerror(config):
     (contract_minter, contract_address, contract_abi, url, port) = setUp(config, 'left')
     w3 = Web3(Web3.HTTPProvider(url+":"+str(port)))
     token_instance = w3.eth.contract(abi=contract_abi, address=contract_address)
-    tokenId = create_token(contract_minter, token_instance, w3)
+    (tokenId,cost) = await create_token(contract_minter, token_instance, w3)
     assert token_instance.functions.getStateOfToken(tokenId).call() == 0
-    accept_token(contract_minter, token_instance, w3, tokenId)
+    await accept_token(contract_minter, token_instance, w3, tokenId)
     assert token_instance.functions.getStateOfToken(tokenId).call() == 2
-    transfer_token(contract_minter, token_instance, w3, tokenId)
+    await transfer_token(contract_minter, token_instance, w3, tokenId)
     assert token_instance.functions.getStateOfToken(tokenId).call() == 1
 
     id = '2'
@@ -87,8 +87,8 @@ async def test_initiator_commit_txerror(config):
     init.timeout = 0
     result = await init.commit_sending(str(tokenId))
 
-    assert result["status"] == False
-    assert result["error_code"] == ErrorCode.TIMEOUT
+    assert result["commit_status"] == False
+    assert result["commit_error_code"] == ErrorCode.TIMEOUT
 
 
 
@@ -108,8 +108,8 @@ async def test_interledger_with_two_ethereum_abort__txerror(config):
     token_instance_A = w3_A.eth.contract(abi=contract_abi_A, address=contract_address_A)
     token_instance_B = w3_B.eth.contract(abi=contract_abi_B, address=contract_address_B)
     
-    create_token(contract_minter_A, token_instance_A, w3_A, tokenId)
-    create_token(contract_minter_B, token_instance_B, w3_B, tokenId)
+    await create_token(contract_minter_A, token_instance_A, w3_A, tokenId)
+    await create_token(contract_minter_B, token_instance_B, w3_B, tokenId)
     assert token_instance_B.functions.getStateOfToken(tokenId).call() == 0
     assert token_instance_A.functions.getStateOfToken(tokenId).call() == 0
 
@@ -134,9 +134,9 @@ async def test_interledger_with_two_ethereum_abort__txerror(config):
 
         # Activate token in ledgerA
         #change_state_token(contract_minter_A, token_instance_A, w3_A, tokenId)
-        accept_token(contract_minter_A, token_instance_A, w3_A, tokenId)
+        await accept_token(contract_minter_A, token_instance_A, w3_A, tokenId)
         assert token_instance_A.functions.getStateOfToken(tokenId).call() == 2
-        transfer_token(contract_minter_A, token_instance_A, w3_A, tokenId)
+        await transfer_token(contract_minter_A, token_instance_A, w3_A, tokenId)
         assert token_instance_A.functions.getStateOfToken(tokenId).call() == 1
        
         await asyncio.sleep(1) # Simulate Interledger running
@@ -144,7 +144,7 @@ async def test_interledger_with_two_ethereum_abort__txerror(config):
         print ("token ledger A", token_instance_B.functions.getStateOfToken(tokenId).call())
 
         assert token_instance_B.functions.getStateOfToken(tokenId).call() == 2 # just collecting tx_receipt is failing not transaction itself
-        assert token_instance_A.functions.getStateOfToken(tokenId).call() == 1
+        assert token_instance_A.functions.getStateOfToken(tokenId).call() == 2
         assert len(interledger.transfers) == 1
         assert len(interledger.transfers_sent) == 1
         assert interledger.transfers_sent[0].result["status"] == False
@@ -157,6 +157,28 @@ async def test_interledger_with_two_ethereum_abort__txerror(config):
 
         assert len(interledger.results_commit) == 0
         assert len(interledger.results_abort) == 1
+
+        tx_hash = interledger.results_abort[0]["abort_tx_hash"]
+        status = interledger.results_abort[0]["abort_status"]
+        tx_info = w3_A.eth.getTransaction(tx_hash)
+        tx_receipt = w3_A.eth.getTransactionReceipt(tx_hash)
+        # check also other information about the transaction
+        assert tx_info ['hash'] == tx_hash
+        assert tx_info ['blockHash'] != None
+        #assert tx_info ['from'] == contract_address_A
+        assert tx_info ['to'] == contract_address_A
+        print(tx_info)
+        # check function name and abi
+        decoded_input = token_instance_A.decode_function_input(tx_info['input'])
+        assert decoded_input[0].fn_name == token_instance_A.get_function_by_name("interledgerAbort").fn_name
+        assert decoded_input[0].abi == token_instance_A.get_function_by_name("interledgerAbort").abi
+        # check function parameters
+        assert decoded_input[1]['tokenId'] == tokenId
+        assert decoded_input[1]['reason'] == 2
+        print("Stopping Interledger run coroutine")
+        interledger.stop()
+        await interledger_task
+
 
         print("Stopping Interledger run coroutine")
         interledger.stop()

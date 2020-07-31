@@ -16,8 +16,12 @@ setup(
     install_requires=[
         'web3',
         'sqlalchemy',
-        'requests',
+        'requests == 2.20.0',
+        'fabric-sdk-py'
     ],
-    tests_require=['pytest', 'pytest-asyncio'],
+	dependency_links=[
+        'https://github.com/hyperledger/fabric-sdk-py/tarball/master#egg=fabric-sdk-py'
+    ],
+    tests_require=['pytest', 'pytest-asyncio', 'fabric-sdk-py'],
     zip_safe=False
 )
