@@ -380,7 +380,7 @@ Some of the planned future improvements to the Interledger component include
 ***
 
 ## Release Notes
-### 2020-07-31
+### 2020-08-07
 #### Added
 - Support for [Hyperledger Fabric](doc/adapter-fabric.md) ledger
 - Example of using [Hash Time Locked Contracts (HTLCs)](doc/example-HTLC.md) with Interledger

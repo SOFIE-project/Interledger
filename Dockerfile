@@ -1,7 +1,7 @@
 # build with "export DOCKER_BUILDKIT=1"
 FROM python:3.6-alpine AS build
 
-RUN apk add --no-cache gcc musl-dev
+RUN apk add --no-cache gcc g++ musl-dev linux-headers libffi-dev openssl-dev
 COPY ./ /var/interledger/
 WORKDIR /var/interledger
 RUN python3 setup.py develop
