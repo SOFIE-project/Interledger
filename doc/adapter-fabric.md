@@ -1,22 +1,22 @@
 # Interledger support for HyperLedger Fabric networks
 
-The Interledger component enables the interaction with HyperLedger Fabric networks in both the *Initiator* and *Responder* roles. The Interledger for the moment supports only HyperLedger Fabric with version 1.4.x.
+The Interledger component enables the interaction with HyperLedger Fabric networks in both the *Initiator* and *Responder* roles. The Interledger, at the moment, supports only HyperLedger Fabric with version 1.4.x.
 
 ## Interfaces for transfer
 
 ### Sending
 
-The data sending interface `InterledgerSender` as shown in the chaincode [`data_sender.go`](../fabric/chaincode/src/data_sender/data_sender.go) is implemented by the *Initiator* chaincode, for instance `DataSender` in the same source file.
+The data sending interface `InterledgerSender`, as shown in the chaincode [`data_sender.go`](../fabric/chaincode/src/data_sender/data_sender.go), is implemented by the *Initiator* chaincode, for instance `DataSender` in the same source file.
 
-To trigger the sending action accross ledgers, the data payload should be included in the event `InterledgerEventSending`, where the `Id` is the identifier of the data sending event, while the bytes `Data` is the actual data to be sent.
+To trigger the sending action across ledgers, the data payload should be included in the event `InterledgerEventSending`, where the `Id` is the identifier of the data sending event, while the bytes `Data` is the actual data to be sent.
 
 Once the data has been processed by the *Responder* side, the resulting status (Accept/Reject) is reported back to the *Initiator* side using the `interledgerCommit` or `interledgerAbort` methods.
 
 ### Receiving
 
-The data receiving interface `InterledgerReceiver` as shown in the chaincode [`data_receiver.go`](../fabric/chaincode/src/data_receiver/data_receiver.go) is implemented by the *Responder* chaincode, for instance `DataReceiver` in the same source file.
+The data receiving interface `InterledgerReceiver`, as shown in the chaincode [`data_receiver.go`](../fabric/chaincode/src/data_receiver/data_receiver.go), is implemented by the *Responder* chaincode, for instance `DataReceiver` in the same source file.
 
-The method `interledgerReceive` is used to receive data from the interledger component to the ledger, where the `Nonce` is unique identifier of the data transfer object inside the Interledger. The storage or processing logic can be added and customized here before replying whether the incoming data payload is accepted or rejected by the application logic of the chaincode, which is indicated using the events `InterledgerEventAccepted` or `InterledgerEventRejected`.
+The method `interledgerReceive` is used to receive data from the Interledger component to the ledger, where the `Nonce` is the unique identifier of the data transfer object inside the Interledger. The storage or processing logic can be added and customized here before replying whether the incoming data payload is accepted or rejected by the application logic of the chaincode, which is indicated using the events `InterledgerEventAccepted` or `InterledgerEventRejected`.
 
 ## Prerequisites
 
@@ -39,7 +39,7 @@ The configuration information of the networks is to be included in a config file
 
 For `type` =  `fabric`, the required options are:
 
-- **network_profile:** A network connection profile helps the SDK used to connect to the fabric network by providing all required information to operate with it;
+- **network_profile:** A network connection profile helps the SDK to connect to the fabric network by providing all required information to operate with it;
 - **channel_name:** The name of the channel to interact with;
 - **cc_name:** the chaincode name;
 - **cc_version:** the chaincode version;
@@ -76,15 +76,15 @@ With configuration files matching the HyperLedger Fabric network used, as illust
 python3 start_interledger.py config-file-name.cfg
 ```
 
-The usage of the interledger component to interact with the HyperLedger Fabric networks requires having the data sender or receiver side that implements the `InterledgerSender` or `InterledgerReceiver` interfaces mentioned above deployed beforehand. 
+The usage of the Interledger component to interact with the HyperLedger Fabric networks requires having the data sender or receiver side that implements the `InterledgerSender` or `InterledgerReceiver` interfaces mentioned above deployed beforehand. 
 
-With the sender or receiver set up, the interledger component can then be instantiated to connect to the corresponding initiator or responder respectively. After that, by emitting the specifc event described above, the data payload can be transferred and observed accross the two ledgers via the component.
+With the sender or receiver set up, the Interledger component can then be instantiated to connect to the corresponding initiator or responder respectively. After that, by emitting the specific event described above, the data payload can be transferred and observed across the two ledgers via the component.
 
 
 
 ### Example of data transfer
 
-A concrete sample usage of simple data transfer is demonstrated here for illusration.
+A concrete sample usage of simple data transfer is demonstrated here for illustration.
 
 #### Network set up
 
@@ -113,7 +113,7 @@ To set up the HyperLedger Fabric network with the related chaincode deployed, ru
 python tests/fabric/fabric_setup.py local-config-fabric.cfg
 ```
 
-After this deployment, the Interledger component can be instantiated and get running to enable the data transfer across HyperLedger Fabric networks.
+After this deployment, the Interledger component can be instantiated and run, to enable the data transfer across HyperLedger Fabric networks.
 
 Note that to have a clean setup with no previous deployment, one can easily clean up the related containers of the network, for example run the `docker system prune` command.
 
@@ -125,7 +125,7 @@ To run the demo of data transfer across HyperLedger Fabric networks, run the fol
 python tests/fabric/interledger_fabric.py local-config-fabric.cfg
 ```
 
-The script above will get an instance of the Interledger component running, both the left and right side of which is connected to the same HyperLedger Fabric network in this case, for simplicity. Note that this script will implicitly run the `tests/fabric/fabric_setup.py` mentioned in the chaincode deployment section, so it does the deployment and demomenstrates the data transfer process enabled by the Interledger component. Thus, to re-run this demo, one needs to set up the clean networks again.
+The script above will get an instance of the Interledger component running, both the left and right side of which is connected to the same HyperLedger Fabric network in this case, for simplicity. Note that this script will implicitly run the `tests/fabric/fabric_setup.py` mentioned in the chaincode deployment section, so it does the deployment and demonstrates the data transfer process enabled by the Interledger component. Thus, to re-run this demo, one needs to set up the clean networks again.
 
 The running instance will listen on the events that are emitted from the specified channel and chaincode.
 

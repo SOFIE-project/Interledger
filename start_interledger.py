@@ -1,9 +1,10 @@
 import sys, json, asyncio
 from web3 import Web3
 from configparser import ConfigParser
+import json
 
 from src.data_transfer.interledger import Interledger
-from src.data_transfer.ethereum import EthereumInitiator, EthereumResponder
+from src.data_transfer.ethereum import EthereumInitiator, EthereumResponder, EthereumMultiResponder
 from src.data_transfer.ksi import KSIResponder
 from src.data_transfer.fabric import FabricInitiator, FabricResponder
 
@@ -175,48 +176,97 @@ def right_to_left_bridge(parser, left, right):
     return (initiator, responder)
 
 
+def multi_bridge(parser, left, rights):
+    initiator = None
+    responders = []
+
+    ledger_left = parser.get(left, 'type')
+
+    # Left ledger with initiator
+    if ledger_left == "ethereum":
+        (minter, contract_address, contract_abi, url, port, private_key, password, poa) = parse_ethereum(parser, left)
+        # Create Initiator
+        initiator = EthereumInitiator(minter, contract_address, contract_abi, url, port, private_key, password, poa)
+
+    elif ledger_left == "fabric":
+        (net_profile, channel_name, cc_name, cc_version, org_name, user_name, peer_name) = parse_fabric(parser, left)
+        # Create Initiator
+        initiator = FabricInitiator(net_profile, channel_name, cc_name, cc_version, org_name, user_name, peer_name)
+
+    else:
+        print(f"ERROR: ledger type {ledger_left} not supported yet")
+        exit(1)
+
+    for right in rights:
+        print(right)
+        ledger_right = parser.get(right, 'type')
+
+        # Right ledger with responder
+        if ledger_right == "ethereum":
+            (minter, contract_address, contract_abi, url, port, private_key, password, poa) = parse_ethereum(parser, right)
+            # Create Responder
+            responder = EthereumMultiResponder(minter, contract_address, contract_abi, url, port, private_key, password, poa)
+            
+        elif ledger_right == "ksi":
+            # (url, hash_algorithm, username, password) = parse_ksi(parser, right)
+            # # Create Responder
+            # responder = KSIResponder(url, hash_algorithm, username, password)
+            print(f"ERROR: ledger type {ledger_left} not supported for multi-ledger mode yet")
+            exit(1)
+
+        elif ledger_right == "fabric":
+            # (net_profile, channel_name, cc_name, cc_version, org_name, user_name, peer_name) = parse_fabric(parser, left)
+            # # Create Responder
+            # responder = FabricResponder(net_profile, channel_name, cc_name, cc_version, org_name, user_name, peer_name)
+            print(f"ERROR: ledger type {ledger_left} not supported for multi-ledger mode yet")
+            exit(1)
+
+        responders.append(responder)      
+
+    return (initiator, responders)
+
+
 def main():
-    
     # Parse command line iput 
     if len(sys.argv) <= 1:
         print("ERROR: Provide a *.cfg config file to initialize Interledger")
         exit(1)
-
     parser = ConfigParser()
     parser.read(sys.argv[1])
-
 
     # Get direction
     direction = parser.get('service', 'direction')
     left = parser.get('service', 'left')
-    right = parser.get('service', 'right')
-
+    right = rights = parser.get('service', 'right')
+    print(f"rights: {rights} of type: {type(rights)}")
 
     # Build interledger bridge(s)
     interledger_left_to_right = None
     interledger_right_to_left = None
 
     if direction == "left-to-right":
-        
         (initiator, responder) = left_to_right_bridge(parser, left, right)
-
         interledger_left_to_right = Interledger(initiator, responder)
-
-
     elif direction == "right-to-left":
-
         (initiator, responder) = right_to_left_bridge(parser, left, right)
-
         interledger_right_to_left = Interledger(initiator, responder)
-
     elif direction == "both":
-
         (initiator_lr, responder_lr) = left_to_right_bridge(parser, left, right)
         (initiator_rl, responder_rl) = right_to_left_bridge(parser, left, right)
-
         interledger_left_to_right = Interledger(initiator_lr, responder_lr)
         interledger_right_to_left = Interledger(initiator_rl, responder_rl)
-
+    elif direction == "multi":
+        rights = rights.split(',')
+        try:
+            threshold = int(parser.get('service', 'threshold'))
+            print(threshold)
+        except TypeError:
+            exit(1)
+        except Exception:
+            threshold = len(rights)
+        (initiator, responders) = multi_bridge(parser, left, rights)
+        multi_mode = True
+        interledger_left_to_right = Interledger(initiator, responders, multi_mode, threshold)
     else:
         print("ERROR: supported 'direction' values are 'left-to-right', 'right-to-left' or 'both'")
         print("Check your configuration file")
@@ -226,25 +276,17 @@ def main():
     task = None
 
     if interledger_left_to_right and interledger_right_to_left:
-
         future_left_to_right = asyncio.ensure_future(interledger_left_to_right.run())
         future_right_to_left = asyncio.ensure_future(interledger_right_to_left.run())
-
         task = asyncio.gather(future_left_to_right, future_right_to_left)
         print("Starting running routine for *double* sided interledger")
-
     elif interledger_left_to_right:
-
         task = asyncio.ensure_future(interledger_left_to_right.run())
         print("Starting running routine for *left to right* interledger")
-
     elif interledger_right_to_left:
-
         task = asyncio.ensure_future(interledger_right_to_left.run())
         print("Starting running routine for *right to left* interledger")
-
     else:
-
         print("ERROR while creating tasks for interledger")
         exit(1)
     

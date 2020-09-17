@@ -1,10 +1,10 @@
-from data_transfer.interledger import Interledger, Transfer, State
-from data_transfer.interfaces import LedgerType
-from typing import List
 import pytest, time
 import asyncio 
 from unittest.mock import patch
 from uuid import uuid4
+
+from data_transfer.interledger import Interledger, Transfer, State
+from .utils import MockInitiator, MockResponder, MockResponderAbort
 
 # # # Global view
 # #
@@ -15,49 +15,6 @@ from uuid import uuid4
 # #
 # #  MockInitiator <- Interledeger -> MockResponder
 #
-
-class MockInitiator:
-
-    def __init__(self, events: List):
-        self.events = events
-        self.ledger_type = LedgerType.ETHEREUM
-
-    async def listen_for_events(self):
-        result = []
-        if len(self.events) > 0:
-            result = self.events.copy()
-            self.events.clear()
-        return result
-    
-    async def commit_sending(self, id: str):
-        return {"commit_status": True, "commit_tx_hash" : '0x111'}
-
-    async def abort_sending(self, id: str, reason: int):
-         return {"abort_status": True, "abort_tx_hash" : '0x222'}
-
-
-# Responder which getting positive result
-
-class MockResponder:
-
-    def __init__(self):
-        self.events = []
-        self.ledger_type = LedgerType.ETHEREUM
-
-    async def send_data(self, nonce: str, data: bytes):
-
-        return {"status": 42}
-
-
-# Responder which getting negative result
-
-class MockResponderAbort:
-
-    async def send_data(self, nonce: str, data: bytes):
-
-        return {"status": False}
-
-
 
 #
 # Test receive_transfer

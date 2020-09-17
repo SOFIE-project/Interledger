@@ -10,12 +10,12 @@ The SOFIE Interledger component supports atomic transfer of information between 
 Goal
 -----
 
-This example implements data transfer functionality between two Ethereum networks. Other types of ledgers e.g. Hyperledger Fabric networks can be utilised with simple configuration changes.
+This example implements data transfer functionality between two ledgers. The example contains code for the Ethereum and Hyperledger Fabric ledgers, and other types of ledgers can be utilised with simple configuration changes.
 
 Design
 ------
 
-A smart contact `DataSender`_ that implements the `InterledgerSenderInterface`_ is deployed on the originating network to invoke the data sending process after the *emitData(bytes memory data)* function is called:
+A smart contract `DataSender`_ that implements the `InterledgerSenderInterface`_ is deployed on the *Initiator* ledger to invoke the data sending process after the *emitData(bytes memory data)* function is called:
 
 .. code-block::
 
@@ -86,13 +86,14 @@ A Hyperledger Fabric `DataReceiver-Fabric`_ chaincode for the same purpose inclu
 .. _InterledgerSenderInterface: ../solidity/contracts/InterledgerSenderInterface.sol
 .. _InterledgerReceiverInterface: ../solidity/contracts/InterledgerReceiverInterface.sol
 
-Usage
-======
+Data transfer between Two Ethereum ledgers
+==========================================
+This section details how to setup and run data transfers between two Ethereum ledgers (networks).
 
 Set up
 ------
 
-After the `DataSender`_ and `DataReceiver`_ have been deployed in the respective Ethereum networks, a configuration file similar to the one below should be provided for connecting the two smart contracts to the interledger component.
+After the `DataSender`_ and `DataReceiver`_ have been deployed in the respective Ethereum networks, a configuration file similar to the one below is required for connecting the two smart contracts to the interledger component (i.e. it defines an *Interledger instance* between the two smart contracts ).
 
 ::
 
@@ -124,18 +125,64 @@ For the corresponding Hyperledger Fabric chaincodes, please follow the adapter-s
 Execution
 ---------
 
-1. Start an instance of the Interleldger component that connects to the specified smart contracts for data sending and receiving.
+1. Start the Interleldger component (and the defined *Interledger instance*).
 
 ::
 
   python3 start_interledger.py config-file-name.cfg
 
-Interledger will then listen for the "InterledgerEventSending" event, and forward the data payload of that event to the data receiver once it catches the event.
+Interledger will then listen for the "InterledgerEventSending" event, and once it catches the event, forward the data payload of that event to the data receiver.
 
 2. Invoke the "emitData" method of the data sender (any suitable means can be used) to trigger the data transfer.
 
 3. The response events of "InterledgerEventAccepted" or "InterledgerEventRejected" and the storage of the incoming data can then be observed on the destination ledger.
 
-Note: for the data transfer between a Hyperledger Fabric and a Ethereum network in both directions, the detailed description is provided in `HF-ETH-Data-transfer-example`_.
 
-.. _HF-ETH-Data-transfer-example: ../doc/example-data-transfer-HF-ETH.md
+Data transfer between Hyperledger Fabric and Ethereum
+=====================================================
+
+This section details how to run data transfers between an Ethereum and a Hyperledger Fabric ledgers, this time as a bidirectional connection utilising two *Interledger instances* in opposite directions.
+
+Set up
+-------
+
+First, the Hyperledger Fabric and Ethereum networks on both sides of the Interledger component should be set up, upon which the chaincode and/or smart contract for data sender and receiver can be deployed.
+
+For Hyperledger Fabric, a procedure similar to the one described in `Adapter-Fabric`_ should be followed. In this, tests for the deployment of chaincodes for both data sender and receiver will be covered by the `test-script`_. Note that the chaincode deployment may take a while to settle.
+
+.. _Adapter-Fabric: ./adapter-fabric.md#Network-set-up
+.. _test-script: ../tests/fabric/data_transfer_hf_eth.py
+
+For Ethereum side, private test networks can be easily set up as follows.
+
+::
+
+    ganache-cli -p 7545 -b 1
+    ganache-cli -p 7546 -b 1
+
+The smart contracts for data sender and receiver could be deployed as follows.
+
+::
+
+    truffle migrate --reset --f 2 --to 2 --network left
+    truffle migrate --reset --f 3 --to 3 --network right
+
+
+After the migrations settle, the corresponding configuration file `local-config-HF-ETH.cfg` should be updated for corresponding sections, including `right1` for the data receiver and `left2` for data sender.
+
+Execution
+---------
+
+With the networks set up and smart contracts deployed, it is ready to test for data transfers between:
+
+1. Hyperledger Fabric (left1) to Ethereum (right1) networks
+2. Ethereuem (left2) to Hyperledger Fabric networks
+
+with the following commands
+
+::
+
+    export PATH=$PATH:$PWD/fabric/bin
+    python tests/fabric/data_transfer_hf_eth.py local-config-HF-ETH.cfg 
+
+The actions of data payload being transferred between the two types of distributed ledgers can be observed from the standard outputs.

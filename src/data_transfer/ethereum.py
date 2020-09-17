@@ -5,7 +5,7 @@ import web3
 Web3 = web3.Web3
 from web3.middleware import geth_poa_middleware
 
-from .interfaces import Initiator, Responder, ErrorCode, LedgerType
+from .interfaces import Initiator, Responder, MultiResponder, ErrorCode, LedgerType
 from .interledger import Transfer
 
 
@@ -355,6 +355,188 @@ class EthereumResponder(Web3Initializer, Responder):
                 # and the values that 'status' can get
                 # if a transaction fails, I guess web3py just raises a ValueError exception
                 # This return below cannot be clear, but I think it will never be executed
+                return {"status": False, 
+                        "error_code": ErrorCode.TRANSACTION_FAILURE,
+                        "message": "Error in the transaction",
+                        "tx_hash": tx_hash}
+        except web3.exceptions.TimeExhausted as e :
+            # Raised by web3.eth.waitForTransactionReceipt
+            return {"status": False, 
+                    "error_code": ErrorCode.TIMEOUT,
+                    "message": "Timeout after sending the transaction",
+                    "tx_hash": tx_hash,
+                    "exception": e}
+        except ValueError as e:
+            # Raised by a contract function 
+            d = eval(e.__str__())
+            return {"status": False, 
+                    "error_code": ErrorCode.TRANSACTION_FAILURE, 
+                    "message": d['message'],
+                    "tx_hash": tx_hash,
+                    "exception": e}
+
+    
+class EthereumMultiResponder(EthereumResponder, MultiResponder):
+    """Similar working unit as EthereumResponder, but should be used under multi-ledger mode only.
+    """
+
+    async def send_data_inquire(self, nonce: str, data: bytes) -> dict:
+        """Invoke the inquiry operation to the connected ledger
+        :param string nonce: the identifier to be unique inside interledger for a data item
+        :param bytes data: the actual content of data
+
+        :returns: True if the operation goes well; False otherwise
+        :rtype: dict {
+            'status': bool,
+            'tx_hash': str,
+            'exception': object,# only with errors
+            'error_code': Enum, # only with errors
+            'message': str      # only with errors
+        }
+        """
+        # Return transaction hash, need to wait for receipt
+        tx_hash = None
+        tx_receipt = None
+        try:
+            # unlock using private_key
+            if self.private_key and not self.isUnlocked(self.minter): # needs to unlock with private key
+                print("unlock with priv_key")
+                transaction = self.contract.functions \
+                    .interledgerInquire(Web3.toInt(text=nonce), data) \
+                    .buildTransaction({'from': self.minter})
+                transaction.update({'nonce': self.web3.eth.getTransactionCount(self.minter)})
+                signed_tx = self.web3.eth.account.signTransaction(transaction, self.private_key)
+                tx_hash = self.web3.eth.sendRawTransaction(signed_tx.rawTransaction)
+            # unlock using password
+            elif self.password is not None:
+                print("unlock with password")
+                unlock = self.web3.geth.personal.unlockAccount(self.minter, self.password, 0) # unlock indefinitely
+                if not unlock:
+                    return {"status": False, 
+                            "error_code": ErrorCode.TRANSACTION_FAILURE,
+                            "message": "Wrong password",
+                            "tx_hash": None}
+                tx_hash = self.contract.functions \
+                    .interledgerInquire(Web3.toInt(text=nonce), data) \
+                    .transact({'from': self.minter})
+                # lock the account again
+                self.web3.geth.personal.lockAccount(self.minter)
+            # no need to unlock
+            else:
+                print("default")
+                tx_hash = self.contract.functions \
+                    .interledgerInquire(Web3.toInt(text=nonce), data) \
+                    .transact({'from': self.minter})
+            # tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash, timeout=self.timeout)
+            tx_receipt = await asyncio.get_event_loop().run_in_executor(
+                None, functools.partial(self.web3.eth.waitForTransactionReceipt, tx_hash, timeout=self.timeout))
+
+            if tx_receipt['status']:    
+                logs_accept = self.contract.events.InterledgerInquiryAccepted().processReceipt(tx_receipt)
+                logs_reject = self.contract.events.InterledgerInquiryRejected().processReceipt(tx_receipt)
+                if len(logs_reject) != 0 and logs_reject[0]['args']['nonce'] == int(nonce):
+                    return {"status": False, 
+                            "error_code": ErrorCode.INQUIRY_REJECT,
+                            "message": "InterledgerInquiryRejected() event received",
+                            "tx_hash": tx_hash}
+                if len(logs_accept) != 0 and logs_accept[0]['args']['nonce'] == int(nonce):
+                    return {"status": True,
+                            "tx_hash": tx_hash}
+                else:
+                    return {"status": False, 
+                            "error_code": ErrorCode.TRANSACTION_FAILURE,
+                            "message": "No InterledgerInquiryAccepted() or InterledgerInquiryRejected() event received",
+                            "tx_hash": tx_hash}
+            else:
+                return {"status": False, 
+                        "error_code": ErrorCode.TRANSACTION_FAILURE,
+                        "message": "Error in the transaction",
+                        "tx_hash": tx_hash}
+        except web3.exceptions.TimeExhausted as e :
+            # Raised by web3.eth.waitForTransactionReceipt
+            return {"status": False, 
+                    "error_code": ErrorCode.TIMEOUT,
+                    "message": "Timeout after sending the transaction",
+                    "tx_hash": tx_hash,
+                    "exception": e}
+        except ValueError as e:
+            # Raised by a contract function 
+            d = eval(e.__str__())
+            return {"status": False, 
+                    "error_code": ErrorCode.TRANSACTION_FAILURE, 
+                    "message": d['message'],
+                    "tx_hash": tx_hash,
+                    "exception": e}
+                    
+
+    async def abort_send_data(self, nonce: str, reason: int) -> dict:
+        """Invoke the abort sending operation to the connected ledger
+        :param string nonce: the identifier to be unique inside interledger for a data item
+        :param int reason: the description on why the data transfer is aborted
+        
+        :returns: True if the operation goes well; False otherwise
+        :rtype: dict {
+            'status': bool,
+            'tx_hash': str,
+            'exception': object,# only with errors
+            'error_code': Enum, # only with errors
+            'message': str      # only with errors
+        }
+        """
+        # Return transaction hash, need to wait for receipt
+        tx_hash = None
+        tx_receipt = None
+        try:
+            # unlock using private_key
+            if self.private_key and not self.isUnlocked(self.minter): # needs to unlock with private key
+                print("unlock with priv_key")
+                transaction = self.contract.functions \
+                    .interledgerReceiveAbort(Web3.toInt(text=nonce), reason) \
+                    .buildTransaction({'from': self.minter})
+                transaction.update({'nonce': self.web3.eth.getTransactionCount(self.minter)})
+                signed_tx = self.web3.eth.account.signTransaction(transaction, self.private_key)
+                tx_hash = self.web3.eth.sendRawTransaction(signed_tx.rawTransaction)
+            # unlock using password
+            elif self.password is not None:
+                print("unlock with password")
+                unlock = self.web3.geth.personal.unlockAccount(self.minter, self.password, 0) # unlock indefinitely
+                if not unlock:
+                    return {"status": False, 
+                            "error_code": ErrorCode.TRANSACTION_FAILURE,
+                            "message": "Wrong password",
+                            "tx_hash": None}
+                tx_hash = self.contract.functions \
+                    .interledgerReceiveAbort(Web3.toInt(text=nonce), reason) \
+                    .transact({'from': self.minter})
+                # lock the account again
+                self.web3.geth.personal.lockAccount(self.minter)
+            # no need to unlock
+            else:
+                print("default")
+                tx_hash = self.contract.functions \
+                    .interledgerReceiveAbort(Web3.toInt(text=nonce), reason) \
+                    .transact({'from': self.minter})
+            # tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash, timeout=self.timeout)
+            tx_receipt = await asyncio.get_event_loop().run_in_executor(
+                None, functools.partial(self.web3.eth.waitForTransactionReceipt, tx_hash, timeout=self.timeout))
+
+            if tx_receipt['status']:    
+                logs_accept = self.contract.events.InterledgerEventAccepted().processReceipt(tx_receipt)
+                logs_reject = self.contract.events.InterledgerEventRejected().processReceipt(tx_receipt)
+                if len(logs_reject) != 0 and logs_reject[0]['args']['nonce'] == int(nonce):
+                    return {"status": False, 
+                            "error_code": ErrorCode.APPLICATION_REJECT,
+                            "message": "InterledgerEventRejected() event received",
+                            "tx_hash": tx_hash}
+                if len(logs_accept) != 0 and logs_accept[0]['args']['nonce'] == int(nonce):
+                    return {"status": True,
+                            "tx_hash": tx_hash}
+                else:
+                    return {"status": False, 
+                            "error_code": ErrorCode.TRANSACTION_FAILURE,
+                            "message": "No InterledgerEventAccepted() or InterledgerEventRejected() event received",
+                            "tx_hash": tx_hash}
+            else:
                 return {"status": False, 
                         "error_code": ErrorCode.TRANSACTION_FAILURE,
                         "message": "Error in the transaction",

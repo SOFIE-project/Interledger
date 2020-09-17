@@ -7,6 +7,7 @@ class ErrorCode(Enum):
     TRANSACTION_FAILURE = 2
     UNSUPPORTED_KSI_HASH = 3
     APPLICATION_REJECT = 4
+    INQUIRY_REJECT = 5
     
     
 # Ledger types
@@ -52,7 +53,7 @@ class Initiator(object):
         """Initiate the abort operation to the connected ledger.
 
         :param string id: the identifier in the originating ledger for a data item
-        :param string reason: the description on why the data transfer is aborted
+        :param int reason: the description on why the data transfer is aborted
 
         :returns: True if the operation goes well; False otherwise
         :rtype: dict {
@@ -89,4 +90,43 @@ class Responder(object):
         """
         # actually can be error / reject / accept, tristate ?
         # but for now: True = accept, False = reject
+        assert False, "must be implemented in child class"
+
+
+class MultiResponder(Responder):
+    """
+    Similar working unit as Responder, but should be used under multi-ledger mode only.
+    """
+
+    async def send_data_inquire(self, nonce: str, data: bytes) -> dict:
+        """Invoke the inquiry operation to the connected ledger
+        :param string nonce: the identifier to be unique inside interledger for a data item
+        :param bytes data: the actual content of data
+
+        :returns: True if the operation goes well; False otherwise
+        :rtype: dict {
+            'status': bool,
+            'tx_hash': str,
+            'exception': object,# only with errors
+            'error_code': Enum, # only with errors
+            'message': str      # only with errors
+        }
+        """
+        assert False, "must be implemented in child class"
+
+
+    async def abort_send_data(self, nonce: str, reason: int) -> dict:
+        """Invoke the abort sending operation to the connected ledger
+        :param string nonce: the identifier to be unique inside interledger for a data item
+        :param int reason: the description on why the data transfer is aborted
+        
+        :returns: True if the operation goes well; False otherwise
+        :rtype: dict {
+            'status': bool,
+            'tx_hash': str,
+            'exception': object,# only with errors
+            'error_code': Enum, # only with errors
+            'message': str      # only with errors
+        }
+        """
         assert False, "must be implemented in child class"

@@ -2,9 +2,7 @@
 Example: Game Asset Transfer Protocol with Interledger
 =============================================
 
-The SOFIE Interledger component can be utilized to enforce the transfer of in-game assets between two ledgers in an atomic manner.
-
-Suppose a situation where a game uses a private ledger A to track assets used inside the game. In order to allow players to trade their assets in a flexible way, a public ledger B is used. However, if the asset is being traded, it should be not be usable inside the game as the the asset's owner may change at any moment. Therefore, the asset should be active (usable) at most in a one ledger. The Interledger component can be used to implement such functionality with a slight modification to the basic `data transfer`_ smart contract. 
+The SOFIE Interledger component can be utilized to enforce the transfer of in-game assets between two ledgers in an atomic manner. A private ledger *A* is used to track assets used inside the game, but in order to allow players to also trade their assets in a flexible way, a public ledger *B* is used. However, if the asset is being traded, it should be not be usable inside the game as the the asset's owner may change at any moment. Therefore, the asset should be in the active (usable) state at most in a one ledger. The Interledger component can be used to implement such state transfer protocol with only a slight modification of the basic `data transfer`_ smart contract. 
 
 An implementation of the described asset transfer protocol for Ethereum, based on `AssetTransferInterface`_, is available in `GameToken.sol`_.
 
@@ -31,18 +29,16 @@ States of an asset
 
 The figure above shows the states a single asset can have in a ledger:
 
-- **Here:** the asset is present in that ledger;
-- **TransferOut:** the asset is "moving out" from that ledger;
-- **NotHere:** the asset is absent from that ledger.
+- **Here:** the asset is present in this ledger;
+- **TransferOut:** the asset is "moving out" from this ledger (this state is used only for rolling back the transaction in case of errors);
+- **NotHere:** the asset is present in another ledger.
 
 In this context, we have two actors:
 
 - **Asset creator (minter):** the entity in charge of creating (minting) new assets;
 - **Asset owner:** the entity that owns an existing asset.
 
-The creator of the asset is e.g., a gaming company, and it is the party in charge of running the Interledger component. The owner of an asset in a ledger can use it as long it is present there. To move that asset between ledgers, a cooperation between asset creator and owner is necessary to guarantee atomicity and security of the transfer operation. Each involved entity should follow a protocol, which is automated by the Interledger component.
-
-The above figure shows also the functions used to switch between states: these will be explained in `State Interfaces`_ section.
+The creator of the asset is e.g., a gaming company, and it is the party in charge of running the Interledger component. The owner of an asset can use it only in the ledger in which it is present (has the status **Here**). To move that asset between ledgers, a cooperation between asset creator and owner is necessary to guarantee atomicity and security of the transfer operation. In practice, Interledger performs all actions required from the creator.
 
 .. _states-global:
 
@@ -69,12 +65,17 @@ The **exception** is when an asset does not exist: in that case, we have ``#stat
 State Interfaces
 ^^^^^^^^^^^^^^^^
 
-The state definition of an asset is exposed by a smart contract running in each ledger. Each smart contract should provide the following methods to switch between the proposed states:
+The state definition of an asset is exposed by a smart contract running in each ledger. Each smart contract should provide the 4 methods to switch between the proposed states. One of the methods is only callable by the asset owner:
 
-* ``transferOut(id)``: sets the asset state to TransferOut. Callable by the asset owner;
-* ``interledgerReceive(id)``: sets the asset state to Here. Callable by the asset creator (minter) to transfer asset to this ledger;
-* ``interledgerCommit(id)``: sets the asset state to NotHere. Callable by the asset creator to finalize a transfer;
-* ``interledgerAbort(id, reason)``: sets the asset state to Here. Callable by the asset creator to revert a transfer.
+- ``transferOut(id)``: starts the asset transfer by setting the asset state of a present asset to **TransferOut** on the *Initator* ledger
+
+The other three are only callable by the asset creator (minter) (in practice, they are called by the Interledger as a proxy for the creator):
+
+- ``interledgerReceive(id)``: sets the asset state to **Here** on the *Responder* ledger.
+
+- ``interledgerCommit(id)``: sets the asset state to **NotHere** on the *Initiator* ledger after a successful ``interledgerReceive(id)``.
+
+- ``interledgerAbort(id, reason)``: reverts the asset state to **Here** after a failed ``interledgerReceive(id)``.
 
 where ``id`` is an id identifying the involved asset.
 
@@ -86,14 +87,13 @@ An user *U* wants to transfer asset *asset1* (with id: assetId) from ledger A to
 
 **Precondition:** ``state(assetId) in ledger A = Here`` **&&** ``state(assetId) in ledger B = NotHere``
 
-**Trigger:** The user *U* switches the state of *asset1* from ``Here`` to ``TransferOut`` in ledger A.
-The user invokes the ``transferOut(assetId)`` operation of the smart contract.
+**Trigger:** The user *U* switches the state of *asset1* from ``Here`` to ``TransferOut`` in ledger A by invoking the ``transferOut(assetId)`` operation of the smart contract.
 
 **Action:** The Interledger component calls ``interledgerReceive()`` function from ledger B, which switches the state of *asset1* from ``NotHere`` to ``Here`` in ledger B, and emits ``InterledgerEventAccepted()`` event to signal successful reception. 
 
 After that, the Interledger component calls ``interledgerCommit()`` function in ledger A, which de-activates *asset1* by switching its state from ``TransferOut`` to ``NotHere``.
 
-These two operations are atomic: either both or none are finalized. At each step, **global invariant** is preserved as introduced in `State view`_ section.
+These two operations are atomic: either both or none are finalised. At each step, **global invariant** is preserved as introduced in `State view`_ section.
 
 **Postcondition:** ``state(assetId) in ledger A = NotHere`` **&&** ``state(assetId) in ledger B = Here``
 
@@ -105,8 +105,7 @@ An user *U* wants to transfer asset *asset1* (with id: assetId) from ledger A to
 
 **Precondition:** ``state(assetId) in ledger A = Here`` **&&** ``state(assetId) in ledger B = NotHere``
 
-**Trigger:** The user *U* switches the state of *asset1* from ``Here`` to ``TransferOut`` in ledger A.
-The user invokes the ``transferOut(assetId)`` operation of the smart contract.
+**Trigger:** The user *U* switches the state of *asset1* from ``Here`` to ``TransferOut`` in ledger A by invoking the ``transferOut(assetId)`` operation of the smart contract.
 
 **Action:** The Interledger component calls ``interledgerReceive()`` function from ledger B, which should set the state of *asset1* from ``NotHere`` to ``Here`` in ledger B, however this operation does not succeed (either transaction fails or  ``InterledgerEventRejected()`` event is emitted). 
 

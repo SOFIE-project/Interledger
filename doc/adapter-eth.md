@@ -1,6 +1,6 @@
 # Interledger support for Ethereum networks
 
-The Interledger component surpports interaction with both private and public Ethereum networks in both the *Initiator* and *Responder* roles. 
+The Interledger component supports interaction with both private and public Ethereum networks in both the *Initiator* and *Responder* roles. 
 
 ## Interfaces for data transfer
 
@@ -20,7 +20,7 @@ For cases where additional information is returned to the initiator, an override
 
 The data receiving interface `InterledgerReceiverInterface` is to be implemented by the *Responder* smart contract.
 
-The method `interledgerReceive(nonce, data)` is used to receive data from the interledger component to the ledger, where the `nonce` is unique identifier of the data transfer object inside the interledger component. The storage or processing logic can be added here before replying whether the incoming data payload is accepted or rejected by the application logic of the smart contract, which is indicated using the events `InterledgerEventAccepted(nonce)` or `InterledgerEventRejected(nonce)`.
+The method `interledgerReceive(nonce, data)` is used to receive data from the Interledger component to the ledger, where the `nonce` is the unique identifier of the data transfer object inside the Interledger component. The storage or processing logic can be added here before replying whether the incoming data payload is accepted or rejected by the application logic of the smart contract, which is indicated using the events `InterledgerEventAccepted(nonce)` or `InterledgerEventRejected(nonce)`.
 
 ## Configuration
 
@@ -60,11 +60,11 @@ contract_abi=solidity/contracts/GameToken.abi.json
 ```
 
 ### external-provider
-For public Ethereum network external providers, such as [Infura](https://infura.io/), can be utilised to avoid running a full Ethereum node. For external providers the additional option is:
+For public Ethereum network, external providers such as [Infura](https://infura.io/) can be utilised to avoid running a full Ethereum node. For external providers, the additional option is:
 
 - **private_key** the private key of the minter account used to sign the transaction;
 
-Specifically, when using the Infura endpoints, please use the websocket version only, so that the events emmitted can be listened properly. And an example of that can be found in the `[infura]` part of the sample configuration `local-config.cfg`, just like the following.
+Specifically, when using the Infura endpoints, please use the websocket version only, so that the events emitted can be listened properly. And an example of that can be found in the `[infura]` part of the sample configuration `local-config.cfg`, just like the following.
 
 ```
 [infura]
@@ -78,7 +78,7 @@ contract_abi=./solidity/contracts/DataTransceiver.abi.json
 
 - **password** the password of the minter account to sign transaction
 
-Similarly, the above option can be included in the configrations:
+Similarly, the above option can be included in the configurations:
 
 ```
 password=<password-of-minter-account>
@@ -88,20 +88,20 @@ With this configuration, the Ethereum adapter will try to unlock the minter acco
 
 - **poa** boolean to indicate whether to enable the injection of PoA middleware
 
-For networks that supports Proof-of-Authority (PoA) standard, such as the Rinkeby test network, the above option can be included in the configurations to allow modification on the block data that has deviation from the Ethereum yellow paper specification. Example is simply given as:
+For networks that support Proof-of-Authority (PoA) standard, such as the Rinkeby test network, the above option can be included in the configurations to allow modification on the block data that has deviations from the Ethereum yellow paper specification. Example is simply given as:
 
 ```
 poa=true
 ```
 
-To facilitate the test, deployment to the public network is also enabled by using the truffle installed. Before that, one has to fill in the correct `MNEMONIC` and `API_KEY` in the `solidity/truffle-config.js` file. Here it is assumed that public test network `rinkeby` will be used, but one change that to the need.
+To facilitate the test, deployment to the public network is also enabled by using the truffle installed. Before that, one has to fill in the correct `MNEMONIC` and `API_KEY` in the `solidity/truffle-config.js` file. Here it is assumed that public test network `rinkeby` will be used, but one can change that as required. 
 
 ```
 npx truffle migrate --reset --network rinkeby
 ```
 
 ## Usage
-The usage of the interledger component to interact with the Ethereum networks requires having the data sender or receiver which implement the `InterledgerSenderInterface` or `InterledgerReceiverInterface` properly deployed. With the sender and receiver set up, the interledger component can then be instantiated to connect to them. After that, by emitting the specifc event described above, the data payload can be transferred and observed accross the two ledgers via the component.
+The usage of the Interledger component to interact with the Ethereum networks requires having the data sender or receiver which implement the `InterledgerSenderInterface` or `InterledgerReceiverInterface` properly deployed. With the sender and receiver set up, the Interledger component can then be instantiated to connect to them. After that, by emitting the specifc event described above, the data payload can be transferred and observed accross the two ledgers via the component.
 
 ### Examples
 

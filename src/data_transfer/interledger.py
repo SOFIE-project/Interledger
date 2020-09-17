@@ -1,19 +1,23 @@
 import asyncio
+from typing import Union, List
+from itertools import chain
 import concurrent.futures
 from enum import Enum
 from uuid import uuid4
 
-from .interfaces import Initiator, Responder, ErrorCode, LedgerType
+from .interfaces import Initiator, Responder, MultiResponder, ErrorCode, LedgerType
 
 
 class State(Enum):
     """State of a data transfer during the protocol
     """
     READY = 1
-    SENT = 2
-    RESPONDED = 3
-    CONFIRMING = 4
-    FINALIZED = 5
+    INQUIRED = 2
+    ANSWERED = 3
+    SENT = 4
+    RESPONDED = 5
+    CONFIRMING = 6
+    FINALIZED = 7
 
 
 class Transfer(object):
@@ -21,28 +25,69 @@ class Transfer(object):
     the transfer 'state'; the event transfer 'data'.
     """
     def __init__(self):
-        self.send_task = None
-        self.result = None
-        self.confirm_task = None
         self.state = State.READY
         self.payload = None # transactional data bundle
+        self.send_task = None
+        self.confirm_task = None
+        self.result = {}
+
+
+class TransferToMulti(Transfer):
+    """The information of a data transfer, that is aimed to for multi-ledger targets
+    """
+    def __init__(self):
+        super().__init__()
+        self.inquiry_tasks = None
+        self.inquiry_results = None
+        self.inquiry_decision = None
+        self.send_tasks = None
+        self.results = None
 
 
 class Interledger(object):
     """
     Class definition of an interledger component, which is composed by an Initiator and a Responder to implement the data transfer operation.
     """
-    def __init__(self, initiator: Initiator, responder: Responder):
+    def __init__(self, initiator: Initiator, responder: Union[Responder, List], multi: bool=False, threshold: int=1):
         """Constructor
         :param object initiator: The Initiator object
-        :param object responder: The Responder object
+        :param object responder: The Responder object by default, list of Responder objects in multi-ledger mode
+        :param bool multi: whether the multi-ledger mode is enabled
+        :param int threshold: threshold number of minimum requirement for positive responses from all responders
         """
+
+        # multi-ledger mode
+        self.multi = multi
+
         # initiator and responder
         self.initiator = initiator
-        self.responder = responder
+        if not self.multi:
+            self.responder = responder
+            self.responders = None
+        else:
+            self.responder = None
+            self.responders = responder
+            # check multi-responder
+            for resp in self.responders:
+                if not isinstance(resp, MultiResponder):
+                    raise TypeError("MultiResponder required in multi-ledger mode")
+
+        if not self.multi:
+            self.threshold = 1
+        else:
+            if threshold < 0 or threshold > len(self.responders):
+                raise ValueError("Invalid threshold number")
+            self.threshold = threshold
 
         # transfer ralated
         self.transfers = []
+        
+        if not self.multi:
+            self.transfers_inquired = None
+            self.transfers_answered = None
+        else:
+            self.transfers_inquired = []
+            self.transfers_answered = []
 
         self.transfers_sent = []
         self.transfers_responded = []
@@ -52,7 +97,8 @@ class Interledger(object):
 
         self.results_aborting = []
         self.results_abort = []
-        
+
+        # initial state is down
         self.up = False
         
     async def run(self):
@@ -61,17 +107,21 @@ class Interledger(object):
         """
         self.up = True
         while self.up:
-
             # Triggers
             receive = asyncio.ensure_future(self.receive_transfer())
-            if not self.transfers_sent and not self.results_committing and not self.results_aborting:
+            if not self.transfers_inquired \
+               and not self.transfers_sent \
+               and not self.results_committing \
+               and not self.results_aborting:
                 await receive
             else:
+                answer = asyncio.ensure_future(self.transfer_inquiry())
                 result = asyncio.ensure_future(self.transfer_result())
                 confirm = asyncio.ensure_future(self.confirm_transfer())
-                asyncio.wait([receive, result, confirm], return_when=asyncio.FIRST_COMPLETED)
+                asyncio.wait([receive, answer, result, confirm], return_when=asyncio.FIRST_COMPLETED)
 
             # Actions
+            inquiry = asyncio.ensure_future(self.send_inquiry())
             send = asyncio.ensure_future(self.send_transfer())
             process = asyncio.ensure_future(self.process_result())
             await send
@@ -111,67 +161,174 @@ class Interledger(object):
             self.transfers.extend(transfers)
         return len(transfers)
 
+    # Action (used by multi-ledger mode only)
+    async def send_inquiry(self):
+        """Used in multi-ledger mode, forward transfer inquiry to responders.
+        """
+        if not self.multi:
+            return
+        for transfer in self.transfers:
+            if transfer.state == State.READY:
+                transfer.state = State.INQUIRED
+                nonce, data = transfer.payload['nonce'], transfer.payload['data']
+                transfer.inquiry_tasks = [asyncio.ensure_future( \
+                    resp.send_data_inquire(nonce, data)) \
+                    for resp in self.responders]
+                transfer.inquiry_results = [None] * len(self.responders)
+                self.transfers_inquired.append(transfer)
+
+    # Trigger (used by multi-ledger mode only)
+    async def transfer_inquiry(self):
+        """Stores the inquiry results coming back to connected responders.
+        """
+        if not self.multi: 
+            return
+
+        inquiry_tasks = []
+        for transfer in self.transfers_inquired:
+            inquiry_tasks.extend(transfer.inquiry_tasks)
+        if not inquiry_tasks: 
+            return
+
+        await asyncio.wait(inquiry_tasks, return_when=asyncio.ALL_COMPLETED)
+
+        for transfer in self.transfers_inquired:
+            transfer.inquiry_results = [t.result() if t.done() else None for t in transfer.inquiry_tasks]
+            status = [r['status'] for r in transfer.inquiry_results]
+            transfer.inquiry_decision = status.count(True) >= self.threshold
+            transfer.state = State.ANSWERED
+            self.transfers_answered.append(transfer)
+
+        # update records
+        self.transfers_inquired = [transfer for transfer in self.transfers_inquired if transfer.state == State.INQUIRED]
+
+
     # Action
     async def send_transfer(self):
         """Forward the stored transfers to the Responder.
         """
-        for transfer in self.transfers:
-            if transfer.state == State.READY:
-                transfer.state = State.SENT
-                
-                print("********** send transfer ************")
-                print(f"{transfer.payload}")
-                print("*************************************")
-                
+        if not self.multi:
+            for transfer in self.transfers:
                 # generate nonce
                 nonce, data = transfer.payload['nonce'], transfer.payload['data']
-                # send data to destination ledger
-                transfer.send_task = asyncio.ensure_future(self.responder.send_data(nonce, data))
-                self.transfers_sent.append(transfer)
+
+                if transfer.state == State.READY:
+                    transfer.state = State.SENT                    
+                    # send data to destination ledger
+                    transfer.send_task = asyncio.ensure_future(self.responder.send_data(nonce, data))
+                    self.transfers_sent.append(transfer)
+
+        else: # multi-ledger mode
+            for transfer in self.transfers_answered:
+                # generate nonce
+                nonce, data = transfer.payload['nonce'], transfer.payload['data']
+
+                if transfer.state == State.ANSWERED:
+                    transfer.state = State.SENT
+                    if transfer.inquiry_decision: # inquiry agreed
+                        transfer.send_tasks = [asyncio.ensure_future( \
+                            resp.send_data(nonce, data)) \
+                            for resp in self.responders]
+                    else: # inquiry rejected
+                        transfer.send_tasks = [asyncio.ensure_future( \
+                            resp.abort_send_data(nonce, 5)) \
+                            for resp in self.responders] # reason = 5 for INQUIRY_REJECT
+                    transfer.results = [None] * len(self.responders)
+                    self.transfers_sent.append(transfer)
+            
+            # update records
+            self.transfers_answered = [transfer for transfer in self.transfers_answered if transfer.state == State.ANSWERED]
+
 
     # Trigger
     async def transfer_result(self):
         """Store the results of the transfers sent to the Responder. 
            This operation blocks until at least one future has been completed.
         """
-        send_tasks = [transfer.send_task for transfer in self.transfers_sent]
+        if not self.multi:
+            send_tasks = [transfer.send_task for transfer in self.transfers_sent]
+        else:
+            send_tasks = []
+            for transfer in self.transfers_sent:
+                send_tasks.extend(transfer.send_tasks)
+
         if not send_tasks:
             return
-        await asyncio.wait(send_tasks, return_when=asyncio.FIRST_COMPLETED)
-        for transfer in self.transfers_sent:
-            if transfer.state == State.SENT and transfer.send_task.done():
-                transfer.result = transfer.send_task.result()
+
+        if not self.multi:
+            await asyncio.wait(send_tasks, return_when=asyncio.FIRST_COMPLETED)
+            for transfer in self.transfers_sent:
+                if transfer.state == State.SENT and transfer.send_task.done():
+                    transfer.result = transfer.send_task.result()
+                    transfer.state = State.RESPONDED
+                    self.transfers_responded.append(transfer)
+
+        else:
+            await asyncio.wait(send_tasks, return_when=asyncio.ALL_COMPLETED)
+            for transfer in self.transfers_sent:
+                transfer.results = [t.result() if t.done() else None for t in transfer.send_tasks]
                 transfer.state = State.RESPONDED
                 self.transfers_responded.append(transfer)
+                
         # update records
-        self.transfers_sent = [transfer for transfer in self.transfers_sent if transfer.state ==State.SENT]
+        self.transfers_sent = [transfer for transfer in self.transfers_sent if transfer.state == State.SENT]
 
     # Action
     async def process_result(self):
         """Process the result of the responder: trigger the commit() or the abort()
            operation of the Initiator to confirm the status of the transfer.
         """
-        for transfer in self.transfers_responded:
-            if transfer.state == State.RESPONDED:
-                id = transfer.payload['id']
+        if not self.multi:
+            for transfer in self.transfers_responded:
+                if transfer.state == State.RESPONDED:
+                    id = transfer.payload['id']
 
-                if transfer.result["status"]: # commit the transfer from initiator
-                    # If the Responder ledger is KSI, pass the KSI id (stored in 
-                    # tx_hash field of transfer) to the Initiator's commit function
-                    if self.responder.ledger_type == LedgerType.KSI:
+                    if transfer.result["status"]: # commit the transfer from initiator
+                        # If the Responder ledger is KSI, pass the KSI id (stored in 
+                        # tx_hash field of transfer) to the Initiator's commit function
+                        if self.responder.ledger_type == LedgerType.KSI:
+                            transfer.confirm_task = asyncio.ensure_future(
+                                self.initiator.commit_sending(id, transfer.result['tx_hash'].encode()))
+                        else:
+                            transfer.confirm_task = asyncio.ensure_future(
+                                self.initiator.commit_sending(id))
+                        self.results_committing.append(transfer)
+                    else: # abort the transfer from initiator
+                        reason =  2 # ErrorCode.TRANSACTION_FAILURE
+                        transfer.confirm_task = asyncio.ensure_future(self.initiator.abort_sending(id, reason))
+                        self.results_aborting.append(transfer)
+
+                    transfer.state = State.CONFIRMING
+        
+        else: # multi-ledger mode
+            for transfer in self.transfers_responded:
+                if transfer.state == State.RESPONDED:
+                    id = transfer.payload['id']
+
+                    if transfer.inquiry_decision:
+                        status = [r['status'] for r in transfer.results if r and 'status' in r]
+                        if status.count(True) >= self.threshold:
+                            transfer.confirm_task = asyncio.ensure_future(
+                                self.initiator.commit_sending(id))
+                            self.results_committing.append(transfer)
+                        else:
+                            reason =  2 # ErrorCode.TRANSACTION_FAILURE
+                            transfer.confirm_task = asyncio.ensure_future(
+                                self.initiator.abort_sending(id, reason))
+                            self.results_aborting.append(transfer)
+                    
+                    else: # inquiry rejected
+                        reason = 5 # ErrorCode.INQUIRY_REJECT
                         transfer.confirm_task = asyncio.ensure_future(
-                            self.initiator.commit_sending(id, transfer.result['tx_hash'].encode()))
-                    else:
-                        transfer.confirm_task = asyncio.ensure_future(
-                            self.initiator.commit_sending(id))
-                    self.results_committing.append(transfer)
-                else: # abort the transfer from initiator
-                    reason =  2 # ErrorCode.TRANSACTION_FAILURE
-                    transfer.confirm_task = asyncio.ensure_future(self.initiator.abort_sending(id, reason))
-                    self.results_aborting.append(transfer)
+                            self.initiator.abort_sending(id, reason))
+                        self.results_aborting.append(transfer)
 
                 transfer.state = State.CONFIRMING
-        self.transfers_responded = [transfer for transfer in self.transfers_responded if transfer.state == State.RESPONDED]
+
+        # update records
+        self.transfers_responded = [transfer for transfer in self.transfers_responded \
+            if transfer.state == State.RESPONDED]
+
 
     async def confirm_transfer(self):
         """Confirm the status of transfer as either commit or abort based on the initiator operations, to complete the protocol

@@ -2,7 +2,9 @@
 
 Interledger component supports storing hashes to the [Guardtime KSI](https://guardtime.com/technology) blockchain using the [Catena DB](https://tryout-catena.guardtime.net/swagger/) service. This can be used to e.g. improve privacy and provide auditability and transparency: private data is kept on a private ledger, while a hash of the data is stored on KSI to provide immutability for the data (if the original data is modified in any way, the hash verification would fail). 
 
-When using KSI with Interledger, the KSI Responder of the Interledger component *automatically calculates the hash* over the data emitted in *InterledgerEventSending()* event, and stores this hash value to KSI, which in turn generates a new KSI signature. The resulting signature id will be passed to the sending ledger using the modified *interledgerCommit()* function described below. The signature can then be verified by the user using the [Catena DB](https://tryout-catena.guardtime.net/swagger/#!/KSI32Signatures/getUsingGET_V1) service.
+When using KSI with Interledger, the KSI *Responder adapter* of the Interledger component *automatically calculates the hash* over the data emitted in *InterledgerEventSending()* event, and stores this hash value to KSI, which in turn generates a new KSI signature. The resulting signature id will be passed to the sending ledger using the modified *interledgerCommit()* function described below. The signature can then be verified by the user using the [Catena DB](https://tryout-catena.guardtime.net/swagger/#!/KSI32Signatures/getUsingGET_V1) service. 
+
+Normally, the *Responder adapter* does no processing on the data payload, so this is also an example of how it is possible to create adapters that do some prosessing when it is relevant for that ledger.
 
 
 ## Smart Contract Interface
