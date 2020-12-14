@@ -24,7 +24,7 @@
 
 ## Description
 
-Interledger component enables activity on one ledger to trigger activity on one or more ledgers in an atomic manner. The ledgers can be of the same or different types (e.g. Ethereum, Hyperledger Fabric or KSI), and once triggered, Interledger passes a customisable payload from the initiating ledger to the receiving ledger(s). 
+Interledger component enables activity on one ledger to trigger activity on one or more ledgers in an atomic manner. The ledgers can be of the same or different types (e.g. Ethereum, Hyperledger Fabric, Hyperledger Indy, or KSI), and once triggered, Interledger passes a customisable payload from the initiating ledger to the receiving ledger(s). 
 
 The distributed applications utilising the Interledger component can utilise the payload functionality to implement any customised features. Examples of how Interledger can be utilised include:
 - [Transfering Data](/doc/example-data_transfer.rst) from one ledger to another.
