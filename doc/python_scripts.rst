@@ -17,14 +17,28 @@ Code documentation
 Interfaces: Initiator and Responder
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. automodule:: src.data_transfer.interfaces
+.. automodule:: src.interledger.adapter.interfaces
     :members:
 
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Ethereum: Initiator and Responder
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. automodule:: src.data_transfer.ethereum
+.. automodule:: src.interledger.ethereum
+    :members:
+
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Hyperledger Fabric: Initiator and Responder
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. automodule:: src.interledger.fabric
+    :members:
+
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KSI: Responder
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. automodule:: src.interledger.ksi
     :members:
 
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -45,5 +59,12 @@ KSI: Responder
 Interledger
 ^^^^^^^^^^^^
 
-.. automodule:: src.data_transfer.interledger
+.. automodule:: src.interledger.interledger
+    :members:
+
+^^^^^^^^^^^^
+Decentralized Interledger
+^^^^^^^^^^^^
+
+.. automodule:: src.interledger.dil
     :members:

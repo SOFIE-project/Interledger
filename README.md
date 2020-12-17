@@ -1,44 +1,50 @@
 # SOFIE Interledger Component
 
 ## Table of Contents
-- [Description](#Description)
-    - [Architechture Overview](#Architecture-Overview)
-    - [Relation with SOFIE](#Relation-with-SOFIE)
-    - [Key Technologies](#Key-Technologies)
-- [Usage](#Usage)
-    - [Prerequisites](#Prerequisites)
-    - [Installation](#Installation)
-    - [Configuration](#Configuration)
-    - [Execution](#Execution)
-    - [Docker Images](#Docker-Images)
-- [Testing](#Testing)
-    - [Prerequisites for Testing](#Prerequisites-for-Testing)
-    - [Running the Tests](#Running-the-Tests)
-    - [Evaluating Results](Evaluating-Results)
-- [Generating Documentation](#Generating-Documentation)
-- [Open Issues](#Open-Issues)
-- [Future Work](#Future-Work)
-- [Release Notes](#Release-Notes)
-- [Contact Info](#Contact-Info)
-- [License](#License)
+- [Description](#description)
+  * [Architecture Overview](#architecture-overview)
+  * [Relation with SOFIE](#relation-with-sofie)
+  * [Key Technologies](#key-technologies)
+- [Usage](#usage)
+  * [Prerequisites](#prerequisites)
+  * [Installation](#installation)
+  * [Configuration](#configuration)
+  * [Execution](#execution)
+  * [Docker Images](#docker-images)
+- [Testing](#testing)
+  * [Prerequisites for Testing](#prerequisites-for-testing)
+  * [Running the Tests](#running-the-tests)
+  * [Evaluating the Results](#evaluating-the-results)
+  * [Test for multi-ledgers-transaction](#test-for-multi-ledgers-transaction)
+- [Generating Documentation](#generating-documentation)
+  * [Requirements](#requirements)
+  * [Generation](#generation)
+  * [Miscs](#miscs)
+- [Open Issues](#open-issues)
+- [Future Work](#future-work)
+- [Release Notes](#release-notes)
+- [Contact Information](#contact-information)
+- [License](#license)
 
 ## Description
 
-Interledger component enables activity on one ledger to trigger activity on one or more ledgers in an atomic manner. The ledgers can be of the same or different types (e.g. Ethereum, Hyperledger Fabric or KSI), and once triggered, Interledger passes a customisable payload from the initiating ledger to the receiving ledger(s). 
+This is the Interledger component of the [SOFIE Framework](https://github.com/SOFIE-project/Framework).
+
+The Interledger component enables activity on an *Initiator* ledger to trigger activity on one or more *Responder* ledgers in an atomic manner. The ledgers can be of the same or different types (e.g. Ethereum, Hyperledger Fabric, Hyperledger Indy, or KSI), and once triggered, Interledger passes a customisable payload from the *Initiator* ledger to the *Responder* ledger(s). 
 
 The distributed applications utilising the Interledger component can utilise the payload functionality to implement any customised features. Examples of how Interledger can be utilised include:
 - [Transfering Data](/doc/example-data_transfer.rst) from one ledger to another.
-- [Storing Data Hashes](/doc/adapter-ksi.md) example stores detailed information in a (private) ledger and a hash of the information is then  stored in a (public) ledger at suitable intervals using Interledger to benefit from the higher trust of a public ledger.
+- [Storing Data Hashes](/doc/adapter-ksi.md) stores detailed information in a (private) ledger and a hash of the information is then  stored in a (public) ledger at suitable intervals using Interledger to benefit from the higher trust of a public ledger.
 - [Game Asset Transfer](/doc/example-game_asset_transfer.rst) implements a state transfer protocol, which is used for managing in-game assets: the assets can either be used in a game or traded between gamers. For both activities, a separate ledger is used and Interledger ensures that each asset is active in only one of the ledgers.
-- [Hash Time Locked Contracts (HTLCs)](/doc/example-HTLC.md) example describes how to use the Interledger to automate the asset exchange between two ledgers using HTLCs.
+- [Hash Time Locked Contracts (HTLCs)](/doc/example-HTLC.md) describes how to use the Interledger to automate the asset exchange between two ledgers using Hash Time-Locked Contracs (HTLCs).
 
 ### Architecture Overview
 The Interledger component can run one or more *Interledger instances* in parallel. Each instance provides a unidirectional transaction with clear roles: one ledger acts as the *Initiator* that triggers the transaction, and the other ledger(s) acts as the *Responder(s)* that reacts to the trigger. The *Initiator* can also send a data payload to the *Responder(s)*, but the *Responder(s)* can only reply a success/fail status, so the Interledger functions as a unidirectional data transfer from the *Initiator* to the *Responders*. However, a pair of ledgers can also be configured for bidirectional data transfer by defining two instances in opposite directions as described in the [Configuration](#Configuration) section. 
 
-On some ledgers (e.g. Ethereum and Hyperledger Fabric), the Interledger communicates with an application smart contract on the ledger (the smart contract has to implement the *Initiator* and/or the *Responder* [interface](/doc/Interledger_internals.rst#ledger-interfaces)), while on others (e.g. KSI), no smart contract is required (or even available) and the Interledger communicates with the ledger directly. The ability to act as the Initiator and/or the Responder is normally included in the smart contract implementing the application logic, but separate proxy contracts can also be used as wrappers to interface with the Interledger component as has been done e.g. in the [Food Supply Chain pilot](https://media.voog.com/0000/0042/0957/files/sofie-onepager-food_final.pdf) (see the pilot's [smart contracts](https://github.com/orgs/SOFIE-project/projects/1) for details). 
+On some ledgers (e.g. Ethereum and Hyperledger Fabric), the Interledger communicates with an application smart contract on the ledger (the smart contract has to implement the *Initiator* and/or the *Responder* [interface](/doc/Interledger_internals.rst#ledger-interfaces)), while on others (e.g. Hyperledger Indy and KSI), no smart contract is required (or even available) and the Interledger communicates with the ledger directly. The ability to act as the Initiator and/or the Responder is normally included in the smart contract implementing the application logic, but separate proxy contracts can also be used as wrappers to interface with the Interledger component as has been done e.g. in the [Food Supply Chain pilot](https://media.voog.com/0000/0042/0957/files/sofie-onepager-food_final.pdf) (see the pilot's [smart contracts](https://github.com/orgs/SOFIE-project/projects/1) for details). 
 
 ![Interledger](figures/Interledger-overview-2.png)
-Figure 1: using the Interledger module
+*Figure 1: using the Interledger module*
 
 
 As shown in figure 1, the Interledger component is run on a server and for each configured *Interledger instance* it listens for events (*InterledgerEventSending*) from the *Initiator*, which triggers the Interledger to call the *interledgerReceive()* function on the *Responder*. Once the *Responder* is finishied processing the transaction, it emits either *InterledgerEventAccepted* event, which triggers the Interledger to call *interledgerCommit()* function of the *Initiator*, or the *InterledgerEventRejected* event, which triggers the Interledger to call the *interledgerAbort()* function of the *Initiator*. If multiple responders have been defined in an instance, either all-N or k-out-of-N of them have to succeed (depending on which configuration was chosen), otherwise the whole transaction is rolled back and the Interledger calls the *interledgerAbort()* function of the *Initiator*.
@@ -50,13 +56,14 @@ Internally, as shown in Figure 2, the Interledger component is composed of two t
 - *DLT adapters (Initiators and Responders)* links the core with the different ledger types. The adapter is responsible for translating between the core and the ledger's native commands (listening for events and calling functions). Normally, the adapter does no processing on the data payload, but it is possible to implement adapters with specific processing functionality, if the ledger itself lacks suitable functionality (e.g. the KSI Responder Adapter calculates a hash of the data payload and stores the hash to the KSI ledger).
 
 <img width="75%" src="figures/Interledger-overview-1.png">
-Figure 2: internal structure of the Interledger module
 
+*Figure 2: internal structure of the Interledger module*
 
-
-Interledger component currently supports three DLT types: [Ethereum](/doc/adapter-eth.md), [Hyperledger Fabric](/doc/adapter-fabric.md) and [KSI](/doc/adapter-ksi.md). For Ethereum and Hyperledger Fabric, both an *Initiator adapter* and a *Responder adapter* are provided, while for KSI only a *Responder adapter* is provided. Other DLTs can be supported by [implementing adapters](/doc/Interledger_internals.rst#extending-interledger-to-support-additional-ledgers) for them. Support for additional ledgers is [Future Work](#Future-Work).
+Interledger component currently supports three DLT types: [Ethereum](/doc/adapter-eth.md), [Hyperledger Fabric](/doc/adapter-fabric.md), [Hyperledger Indy](/doc/adapter-indy.md) and [KSI](/doc/adapter-ksi.md). For Ethereum and Hyperledger Fabric, both an *Initiator adapter* and a *Responder adapter* are provided, while for Hyperledger Indy, only a *Initiator adapter* is provided, and for KSI only a *Responder adapter*. Other DLTs can be supported by [implementing adapters](/doc/Interledger_internals.rst#extending-interledger-to-support-additional-ledgers) for them. Support for additional ledgers is [Future Work](#Future-Work).
 
 More details of the Interledger component's implementation and how it is utilised for *one-on-one* and *multi-ledger* transactions can be found in the [Technical description](/doc/Interledger_internals.rst).
+
+Finally, this repository mostly focuses on describing a *single-node* implementation of the Interledger functionality, i.e. where one party runs a single node that performs all Interledger operations, thus necessitating the users of the IL services to trust that party. Work has begun on a *Decentralised Interledger (DIL)* implementation, where a *consortium of parties* each can run one or more Interledger nodes all of which are co-ordinated using a shared state. This reduces the trust required as now the users of the Interledger services only need to trust the whole consortium, as well as improves throughput and resiliency of Interledger. An initial implementation of the [Decentralised Interledger (DIL)](/doc/decentralised-interledger.md) is now available. Specifically, the [interfaces](/src/interledger/adapter/interfaces.py) of state adapters are clearly defined at, and a proof-of-concept local state adapter is implemented and verified, with in-memory storage of the transfer entries. The Hyperledger Fabric version and relational database (SQL) version of the state adapter following the same interfaces are still under development. These work will continue in 2021 with more complete implementations, so for now, it's only recommended for testing purposes. Switching to DIL in no way affects the external interfaces or use of the Interledger service, only the internal operations of Interledger, so for the users of the Interledger service the change only appears as a more robust and trustworthy operation of Interledger.
 
 ### Relation with SOFIE
 Interledger is a key component of the SOFIE Federation Architecture as it enables transactions across ledgers. It is a a standalone module that may be used by other SOFIE components and applications as necessary.
@@ -72,7 +79,7 @@ Currently the component supports the Ethereum ledger, and thus **Solidity** smar
 
 ## Usage
 
-The `src/data_transfer` directory contains the code implementing the software modules of Interledger and the default adapters for Ethereum, Hyperledger Fabric and KSI.
+The `src/interledger` directory contains the code implementing the software modules of Interledger and the default adapters for Ethereum, Hyperledger Fabric and KSI.
 
 The `solidity/contracts` contains the smart contracts including the data transfer interfaces used by the component.
 
@@ -92,7 +99,7 @@ The dependencies of the Interledger component can be installed with the followin
 python3 setup.py develop # Install project dependencies locally
 ```
 
-The following commands also apply, especially for external users.
+The following commands also apply.
 
 ```
 python3 setup.py build
@@ -118,11 +125,11 @@ The configuration file, following the `ini` format, has three main sections:
     - `right` = *right*
 
 2) `[left]`: indicates the `type` of that ledger and lists its options. The options depend on the specific ledger.  
-    - `type` = `ethereum` | `fabric` | `ksi` | ...
+    - `type` = `ethereum` | `fabric` | `indy` | `ksi` | ...
     - ...
 
 3) `[right]`: same as above.
-    - `type` = `ethereum` | `fabric` | `ksi` | ...
+    - `type` = `ethereum` | `fabric` | `indy` |`ksi` | ...
     - ...
 
 The `direction` can have three values:
@@ -130,7 +137,7 @@ The `direction` can have three values:
 - `right-to-left` the same, but with inverse order;
 - `both` means that the two *Interledger instances* will be started in opposite directions to allow transfering data in both directions and that both *Initiator* and *Responder adapters* will be instantiated for both ledgers.
 
-`left` and `right` are custom names and provide all the options needed to setup the ledgers. The available options depend on the `type` of the ledger, and more details of [Ethereum](/doc/adapter-eth.md), [Hyperledger Fabric](/doc/adapter-fabric.md) and [KSI](/doc/adapter-ksi.md) configuration options are available in their respective documents. Finally, *left* and *right* can also be the same, so it is possible to use Interledger to connect smart contracts on the same ledger, which can be used e.g. in testing; in that case, section 3 can be omitted.
+`left` and `right` are custom names and provide all the options needed to setup the ledgers. The available options depend on the `type` of the ledger, and more details of [Ethereum](/doc/adapter-eth.md), [Hyperledger Fabric](/doc/adapter-fabric.md), [Hyperledger Indy](/doc/adapter-indy.md) and [KSI](/doc/adapter-ksi.md) configuration options are available in their respective documents. Finally, *left* and *right* can also be the same, so it is possible to use Interledger to connect smart contracts on the same ledger, which can be used e.g. in testing; in that case, section 3 can be omitted.
 
 #### Configuration Example for Ethereum
 
@@ -138,7 +145,7 @@ For ledger `type` =  `ethereum`, the required options are:
 
 - **url:** the ethereum network url (localhost or with [Infura](https://infura.io/));
 - **port:** if the url is localhost;
-- **minter:** the contract minter (creator) address;
+- **minter:** the contract minter (creator) address, which is also the account triggering the operations on a ledger;
 - **contract:** the contract address;
 - **contract_abi:** path to the file describing the contract ABI in JSON format.
 
@@ -317,17 +324,20 @@ ganache-cli -p 7546 -b 1
 Here the block time is set to be one second as simulation of mining.
 
 Afterwards, deploy the smart contracts to the local test networks:
+
 ```bash
 make migrate-left
 make migrate-right
 ```
 
 Then, to test the component, run either:
+
 ```bash
 tox
 ```
 
 Or:
+
 ```bash
 pytest --ignore=tests/system/test_ksi_responder.py --ignore=tests/system/test_interledger_ethereum_ksi.py --ignore=tests/system/test_timeout.py tests/
 ```
@@ -335,13 +345,13 @@ pytest --ignore=tests/system/test_ksi_responder.py --ignore=tests/system/test_in
 Read the [README](/tests/README.md) for pytest tests and test structure.
 
 Note that testing the KSI support requires valid credentials for the Catena service. The tests can be run manually after adding credentials to `local-config.cfg`:
-```bash
 
+```bash
 pytest tests/system/test_ksi_responder.py tests/system/test_interledger_ethereum_ksi.py
 ```
 
 Note that testing timeout handling requires starting `ganache-cli` with `-b <blocking-time>` parameter:
- ```bash
+```bash
 ganache-cli -b 1 -p 7545
 ganache-cli -b 1 -p 7546
 
@@ -360,7 +370,7 @@ When using Tox and Truffle, test results in JUnit format are stored in the `test
 Files `python_test_results.xml` and `smart_contracts_test_results.xml` contain results for 
 the Python and smart contracts' tests respectively.
 
-### Test for multi-ledgers
+### Test for multi-ledgers transaction
 
 Integration tests for multi-ledgers mode have been included as well, with each step of the processing validated. It is not part of the default tests above, so to have to be run separately in the virtual envrionment with the following command:
 
@@ -432,11 +442,18 @@ If multiple transactions are invoked simultaneously, the (Ethereum) nonce of tra
 
 Some of the planned future improvements to the Interledger component include
 
-- support for other ledger types.
+- support for other ledger types, e.g. Quarum
+- more complete implementation of [Decentralised Interledger (DIL)](/doc/decentralised-interledger.md)
 
 ***
 
 ## Release Notes
+
+### 2020-12-17
+#### Added
+- support for [Hyperledger Indy](/doc/adapter-indy.md) as an Initiator
+- initial implementation of [Decentralised Interledger (DIL)](/doc/decentralised-interledger.md)
+
 ### 2020-09-17
 #### Added
 - support multiple Responders in a single transaction (both all-N and k-out-of-N)

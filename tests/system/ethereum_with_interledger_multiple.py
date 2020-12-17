@@ -1,12 +1,11 @@
-from data_transfer.interledger import Interledger, Transfer, ErrorCode
-from data_transfer.ethereum import Web3Initializer, EthereumInitiator, EthereumResponder
-from .test_setup import setUp, create_token, accept_token, transfer_token, calculate_used_gas, non_blocking_accept_token, non_blocking_transfer_token, non_blocking_commit_transaction, non_blocking_abort_transaction, non_blocking_create_token
 from web3 import Web3
-from unittest.mock import patch
-import pytest, time, json, os
+import pytest, time
 import asyncio
-import time
 from uuid import uuid4
+
+from interledger.interledger import Interledger
+from interledger.adapter.ethereum import EthereumInitiator, EthereumResponder
+from .test_setup import setUp, non_blocking_accept_token, non_blocking_transfer_token, non_blocking_create_token
 
 # # # Global view
 #

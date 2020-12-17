@@ -1,12 +1,13 @@
-from data_transfer.interledger import Interledger, Transfer, ErrorCode
-from data_transfer.ethereum import Web3Initializer, EthereumInitiator, EthereumResponder
-from .test_setup import setUp, create_token, accept_token, transfer_token, calculate_used_gas, non_blocking_accept_token, non_blocking_transfer_token, non_blocking_commit_transaction, non_blocking_abort_transaction, non_blocking_create_token
 from web3 import Web3
 from unittest.mock import patch
-import pytest, time, json, os
+import pytest, time
 import asyncio
-import time
 from uuid import uuid4
+
+from interledger.interledger import Interledger
+from interledger.adapter.ethereum import EthereumInitiator, EthereumResponder
+from .test_setup import setUp, create_token, accept_token, transfer_token, calculate_used_gas
+
 
 # # # Global view
 #
@@ -40,7 +41,7 @@ async def test_interledger_with_two_ethereum(config):
 
     print("Test setup ready, performing measurement for successful asset transfer")
 
-    with patch("data_transfer.interledger.Interledger.cleanup") as mock_cleanup:
+    with patch("interledger.interledger.Interledger.cleanup") as mock_cleanup:
         # mock cleanup to check the transfer reaches the end
         
         # Create interledger with a bridge in direction from A to B
@@ -107,7 +108,7 @@ async def test_interledger_with_two_ethereum_transaction_failure(config):
 
     print("Test setup ready, performing measurement for unsuccessful asset transfer")
 
-    with patch("data_transfer.interledger.Interledger.cleanup") as mock_cleanup:
+    with patch("interledger.interledger.Interledger.cleanup") as mock_cleanup:
         # mock cleanup to check the transfer reaches the end
 
         # Create interledger with a bridge in direction from A to B
@@ -174,7 +175,7 @@ async def test_interledger_with_two_ethereum_multiple_transfer(config):
 
         print("Test setup ready, performing measurement for multiple asset transfers")
 
-        with patch("data_transfer.interledger.Interledger.cleanup") as mock_cleanup:
+        with patch("interledger.interledger.Interledger.cleanup") as mock_cleanup:
         #mock cleanup to check the transfer reaches the end
 
         #Create interledger with a bridge in direction from A to B

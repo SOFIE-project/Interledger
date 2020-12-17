@@ -1,9 +1,10 @@
-import pytest, time
+import pytest
 import asyncio 
 from unittest.mock import patch
 from uuid import uuid4
 
-from data_transfer.interledger import Interledger, Transfer, State
+from interledger.interledger import Interledger
+from interledger.transfer import TransferStatus, Transfer
 from .utils import MockInitiator, MockResponder, MockResponderAbort
 
 # # # Global view
@@ -37,7 +38,7 @@ async def test_interledger_receive_transfer():
     assert init.events == []
     assert len(interledger.transfers) == 1
     assert l == 1
-    assert interledger.transfers[0].state == State.READY
+    assert interledger.transfers[0].status == TransferStatus.READY
 
 ##############################
 
@@ -63,7 +64,7 @@ async def test_interledger_send_transfer():
     assert len(i.transfers_sent) == 1
  
     tr = i.transfers[0]
-    assert tr.state == State.SENT
+    assert tr.status == TransferStatus.SENT
     assert asyncio.isfuture(tr.send_task)
 
     await tr.send_task
@@ -81,7 +82,7 @@ async def test_interledger_transfer_result():
     i = Interledger(MockInitiator([]), MockResponder())
     
     t = Transfer()
-    t.state = State.SENT
+    t.status = TransferStatus.SENT
     t.send_task = asyncio.ensure_future(foo())
     i.transfers_sent = [t]
     
@@ -92,7 +93,7 @@ async def test_interledger_transfer_result():
     assert len(i.transfers_sent) == 0
     assert len(i.transfers_responded) == 1
     tr = i.transfers_responded[0]
-    assert tr.state == State.RESPONDED
+    assert tr.status == TransferStatus.RESPONDED
     assert tr.result == 42
 
 
@@ -108,7 +109,7 @@ async def test_interledger_process_result_commit():
     t = Transfer()
     t.payload = {}
     t.payload['id'] = str(uuid4().int)
-    t.state = State.RESPONDED
+    t.status = TransferStatus.RESPONDED
     t.result = {"status": True}
     i.transfers_responded = [t]
 
@@ -117,7 +118,7 @@ async def test_interledger_process_result_commit():
     await task
 
     tr = i.results_committing[0]
-    assert tr.state == State.CONFIRMING
+    assert tr.status == TransferStatus.CONFIRMING
     assert tr.result['status'] == True
     assert len(i.results_commit) == 0
     assert len(i.results_abort) == 0
@@ -135,7 +136,7 @@ async def test_interledger_process_result_abort():
     t = Transfer()
     t.payload = {}
     t.payload['id'] = str(uuid4().int)
-    t.state = State.RESPONDED
+    t.status = TransferStatus.RESPONDED
     t.result = {"status": False}
     i.transfers_responded = [t]
     
@@ -144,7 +145,7 @@ async def test_interledger_process_result_abort():
     await task
 
     tr = i.results_aborting[0]
-    assert tr.state == State.CONFIRMING
+    assert tr.status == TransferStatus.CONFIRMING
     assert tr.result['status'] == False
     assert len(i.results_commit) == 0
     assert len(i.results_abort) == 0
@@ -167,7 +168,7 @@ async def test_interledger_confirm_transfer_commit():
     t.payload = {}
     t.payload['id'] = str(uuid4().int)
     t.result = {}
-    t.state = State.CONFIRMING
+    t.status = TransferStatus.CONFIRMING
     t.confirm_task = asyncio.ensure_future(foo())
     i.results_committing = [t]
     
@@ -176,7 +177,7 @@ async def test_interledger_confirm_transfer_commit():
     await task
 
     res = i.results_commit[0]
-    assert t.state == State.FINALIZED
+    assert t.status == TransferStatus.FINALIZED
     assert res['commit_status'] == True
     assert res['commit_tx_hash'] == '0x333'
     assert len(i.results_commit) == 1
@@ -200,7 +201,7 @@ async def test_interledger_confirm_transfer_abort():
     t.payload = {}
     t.payload['id'] = str(uuid4().int)
     t.result = {}
-    t.state = State.CONFIRMING
+    t.status = TransferStatus.CONFIRMING
     t.confirm_task = asyncio.ensure_future(foo())
     i.results_aborting = [t]
     
@@ -209,7 +210,7 @@ async def test_interledger_confirm_transfer_abort():
     await task
 
     res = i.results_abort[0]
-    assert t.state == State.FINALIZED
+    assert t.status == TransferStatus.FINALIZED
     assert res['abort_status'] == True
     assert res['abort_tx_hash'] == '0x444'
     assert len(i.results_abort) == 1
@@ -242,7 +243,7 @@ async def test_interledger_run_no_cleanup():
     init = MockInitiator(l1)
     i = Interledger(init, MockResponder())
 
-    with patch("data_transfer.interledger.Interledger.cleanup") as mock_cleanup:
+    with patch("interledger.interledger.Interledger.cleanup") as mock_cleanup:
 
         task = asyncio.ensure_future(i.run())
 

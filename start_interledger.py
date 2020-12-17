@@ -3,10 +3,10 @@ from web3 import Web3
 from configparser import ConfigParser
 import json
 
-from src.data_transfer.interledger import Interledger
-from src.data_transfer.ethereum import EthereumInitiator, EthereumResponder, EthereumMultiResponder
-from src.data_transfer.ksi import KSIResponder
-from src.data_transfer.fabric import FabricInitiator, FabricResponder
+from src.interledger.interledger import Interledger
+from src.interledger.adapter.ethereum import EthereumInitiator, EthereumResponder, EthereumMultiResponder
+from src.interledger.adapter.ksi import KSIResponder
+from src.interledger.adapter.fabric import FabricInitiator, FabricResponder
 
 
 # Helper function to read Ethereum related options from configuration file
@@ -65,6 +65,22 @@ def parse_ksi(parser, section):
     password = parser.get(section, 'password')
     
     return (url, hash_algorithm, username, password)
+
+
+# Helper function to read Hyperledger Indy related options from configuration file
+def parse_indy(parser, section):
+    net_type = parser.get(section, 'type')
+    assert net_type == 'indy'
+    
+    # Read data
+    target_did = parser.get(section, 'target_did')
+    pool_name = parser.get(section, 'pool_name')
+    protocol_version = int(parser.get(section, 'protocol_version'))
+    genesis_file_path = parser.get(section, 'genesis_file_path')
+    wallet_id = parser.get(section, 'wallet_id')
+    wallet_key = parser.get(section, 'wallet_key')
+    
+    return (target_did, pool_name, protocol_version, genesis_file_path, wallet_id, wallet_key)
 
 
 # Helper function to read HyperLedger Fabric related options from configuration file

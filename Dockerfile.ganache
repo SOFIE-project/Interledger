@@ -1,5 +1,5 @@
 FROM node:12-alpine3.11
-RUN npm install -g ganache-cli
+RUN npm install -g ganache-cli@6.10.2
 
 # ENV variables contain hostname and port for ganache
 CMD ganache-cli -h $HOSTNAME -p $PORT

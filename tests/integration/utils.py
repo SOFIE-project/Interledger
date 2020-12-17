@@ -1,6 +1,6 @@
 from typing import List
 
-from data_transfer.interfaces import LedgerType, Initiator, Responder, MultiResponder
+from interledger.adapter.interfaces import LedgerType, Initiator, Responder, MultiResponder
 
 
 class MockInitiator(Initiator):

@@ -7,9 +7,9 @@ from web3 import Web3
 sys.path.append(os.path.realpath('.')) # assume running from project root
 from start_interledger import parse_ethereum, parse_fabric
 sys.path.append(os.path.realpath('./src'))
-from data_transfer.interledger import Interledger
-from data_transfer.ethereum import EthereumInitiator, EthereumResponder
-from data_transfer.fabric import FabricInitiator, FabricResponder
+from interledger.interledger import Interledger
+from interledger.adapter.ethereum import EthereumInitiator, EthereumResponder
+from interledger.adapter.fabric import FabricInitiator, FabricResponder
 from fabric_setup import channel_setup, data_sender_setup, data_receiver_setup, set_gopath
 
 

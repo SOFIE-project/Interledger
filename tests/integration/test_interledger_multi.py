@@ -1,8 +1,9 @@
-import pytest, time
+import pytest
 import asyncio
 from uuid import uuid4
 
-from data_transfer.interledger import Interledger, TransferToMulti, State
+from interledger.interledger import Interledger
+from interledger.transfer import TransferStatus, TransferToMulti
 from .utils import MockInitiator, MockMultiResponder, MockMultiResponderAbort
 
 
@@ -39,7 +40,7 @@ async def test_interledger_multi_receive_transfer():
     assert init.events == []
     assert len(interledger.transfers) == 1
     assert l == 1
-    assert interledger.transfers[0].state == State.READY
+    assert interledger.transfers[0].state == TransferStatus.READY
 
 
 #
@@ -68,7 +69,7 @@ async def test_interledger_multi_send_inquiry():
     assert len(i.transfers_inquired) == 1
  
     tr = i.transfers[0]
-    assert tr.state == State.INQUIRED
+    assert tr.status == TransferStatus.INQUIRED
 
     assert len(tr.inquiry_tasks) == 2
     assert asyncio.isfuture(tr.inquiry_tasks[0])
@@ -99,7 +100,7 @@ async def test_interledger_multi_transfer_inquiry():
     i = Interledger(init, [resp1, resp2], True)
 
     t = TransferToMulti()
-    t.state = State.INQUIRED
+    t.status = TransferStatus.INQUIRED
     t.inquiry_tasks = [asyncio.ensure_future(foo()), asyncio.ensure_future(bar())]
     i.transfers_inquired = [t]
     
@@ -112,7 +113,7 @@ async def test_interledger_multi_transfer_inquiry():
     assert len(i.transfers_answered) == 1
 
     tr = i.transfers_answered[0]
-    assert tr.state == State.ANSWERED
+    assert tr.state == TransferStatus.ANSWERED
     assert tr.inquiry_results[0]['status'] == True
     assert tr.inquiry_results[1]['status'] == False
 
@@ -132,7 +133,7 @@ async def test_interledger_multi_send_transfer():
     t.payload['nonce'] = str(uuid4().int)
     t.payload['data'] =  b"dummy"
     t.inquiry_decision = True
-    t.state = State.ANSWERED
+    t.status = TransferStatus.ANSWERED
 
     init = MockInitiator([t])
     resp1 = MockMultiResponder()
@@ -150,7 +151,7 @@ async def test_interledger_multi_send_transfer():
     assert len(i.transfers_sent) == 1
  
     tr = i.transfers[0]
-    assert tr.state == State.SENT
+    assert tr.status == TransferStatus.SENT
 
     # verify the `send_tasks` instead of `send_task` works as expected
     assert tr.send_task is None
@@ -184,7 +185,7 @@ async def test_interledger_multi_transfer_result():
     i = Interledger(init, [resp1, resp2], True)
 
     t = TransferToMulti()
-    t.state = State.SENT
+    t.status = TransferStatus.SENT
     t.send_tasks = [asyncio.ensure_future(foo()), asyncio.ensure_future(bar())]
     i.transfers_sent = [t]
     
@@ -197,7 +198,7 @@ async def test_interledger_multi_transfer_result():
     assert t in i.transfers_responded
 
     tr = i.transfers_responded[0]
-    assert tr.state == State.RESPONDED
+    assert tr.state == TransferStatus.RESPONDED
     assert tr.results[0]['status'] == True
     assert tr.results[1]['status'] == False
 
@@ -217,7 +218,7 @@ async def test_interledger_multi_process_result_commit():
     t = TransferToMulti()
     t.payload = {}
     t.payload['id'] = str(uuid4().int)
-    t.state = State.RESPONDED
+    t.status = TransferStatus.RESPONDED
     t.inquiry_decision = True
     t.results = [{"status": True}, {"status": False}]
     i.transfers_responded = [t]
@@ -228,7 +229,7 @@ async def test_interledger_multi_process_result_commit():
 
     assert len(i.results_committing) == 1
     tr = i.results_committing[0]
-    assert tr.state == State.CONFIRMING
+    assert tr.state == TransferStatus.CONFIRMING
     assert tr.results[0]['status'] == True
     assert tr.results[1]['status'] == False
     assert len(i.results_commit) == 0
@@ -251,7 +252,7 @@ async def test_interledger_multi_process_result_abort():
     t = TransferToMulti()
     t.payload = {}
     t.payload['id'] = str(uuid4().int)
-    t.state = State.RESPONDED
+    t.status = TransferStatus.RESPONDED
     t.inquiry_decision = True
     t.results = [{"status": False}, {"status": False}]
     i.transfers_responded = [t]
@@ -261,7 +262,7 @@ async def test_interledger_multi_process_result_abort():
     await task
 
     tr = i.results_aborting[0]
-    assert tr.state == State.CONFIRMING
+    assert tr.state == TransferStatus.CONFIRMING
     assert tr.results[0]['status'] == False
     assert tr.results[1]['status'] == False
     assert len(i.results_commit) == 0
@@ -284,7 +285,7 @@ async def test_interledger_multi_process_result_inquiry_rejection():
     t = TransferToMulti()
     t.payload = {}
     t.payload['id'] = str(uuid4().int)
-    t.state = State.RESPONDED
+    t.status = TransferStatus.RESPONDED
     t.inquiry_decision = False
     t.results = [{"status": True}, {"status": True}] # set it even to true should not affect
     i.transfers_responded = [t]
@@ -294,7 +295,7 @@ async def test_interledger_multi_process_result_inquiry_rejection():
     await task
 
     tr = i.results_aborting[0]
-    assert tr.state == State.CONFIRMING
+    assert tr.state == TransferStatus.CONFIRMING
     assert tr.results[0]['status'] == True
     assert tr.results[1]['status'] == True
     assert len(i.results_commit) == 0
@@ -320,7 +321,7 @@ async def test_interledger_multi_confirm_transfer_commit():
     t.payload = {}
     t.payload['id'] = str(uuid4().int)
     t.results = []
-    t.state = State.CONFIRMING
+    t.status = TransferStatus.CONFIRMING
     t.inquiry_decision = True
     t.confirm_task = asyncio.ensure_future(foo())
     i.results_committing = [t]
@@ -330,7 +331,7 @@ async def test_interledger_multi_confirm_transfer_commit():
     await task
 
     res = i.results_commit[0]
-    assert t.state == State.FINALIZED
+    assert t.status == TransferStatus.FINALIZED
     assert res['commit_status'] == True
     assert res['commit_tx_hash'] == '0x333'
     assert len(i.results_commit) == 1
@@ -357,7 +358,7 @@ async def test_interledger_multi_confirm_transfer_abort():
     t.payload = {}
     t.payload['id'] = str(uuid4().int)
     t.results = []
-    t.state = State.CONFIRMING
+    t.status = TransferStatus.CONFIRMING
     t.inquiry_decision = True
     t.confirm_task = asyncio.ensure_future(foo())
     i.results_aborting = [t]
@@ -367,7 +368,7 @@ async def test_interledger_multi_confirm_transfer_abort():
     await task
 
     res = i.results_abort[0]
-    assert t.state == State.FINALIZED
+    assert t.status == TransferStatus.FINALIZED
     assert res['abort_status'] == True
     assert res['abort_tx_hash'] == '0x444'
     assert len(i.results_abort) == 1

@@ -1,13 +1,11 @@
-from configparser import ConfigParser
-from data_transfer.interfaces import ErrorCode
-from data_transfer.interledger import Transfer
-from data_transfer.ksi import KSIResponder
-from .test_setup import setUp_ksi
-import pytest, asyncio
-import os, json
-import web3
+import pytest
 import requests
-from web3 import Web3
+
+from interledger.adapter.interfaces import ErrorCode
+from interledger.transfer import Transfer
+from interledger.adapter.ksi import KSIResponder
+from .test_setup import setUp_ksi
+
 
 # # # Local view
 # #

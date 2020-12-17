@@ -1,10 +1,11 @@
-from data_transfer.interledger import Interledger, Transfer
-from data_transfer.ethereum import Web3Initializer, EthereumInitiator, EthereumResponder
+from interledger.interledger import Interledger
+from interledger.transfer import Transfer
+from interledger.adapter.ethereum import EthereumInitiator
 from .test_setup import setUp, setUp_ksi, create_token, accept_token, transfer_token
-from data_transfer.ksi import KSIResponder
+from interledger.adapter.ksi import KSIResponder
 from web3 import Web3
 from unittest.mock import patch
-import pytest, time, json, os
+import pytest
 import asyncio
 import requests
 from uuid import uuid4
@@ -30,7 +31,7 @@ async def test_interledger_with_two_ethereum(config):
 
     print("Test setup ready")
 
-    with patch("data_transfer.interledger.Interledger.cleanup") as mock_cleanup:
+    with patch("interledger.interledger.Interledger.cleanup") as mock_cleanup:
         # mock cleanup to check the transfer reaches the end
 
         # Create interledger with a bridge in direction from A to B

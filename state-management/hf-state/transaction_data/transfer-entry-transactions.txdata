@@ -1,0 +1,44 @@
+[
+    {
+        "transactionName": "transferEntryExists",
+        "transactionLabel": "A test TransferEntryExists transaction",
+        "arguments": [
+            "001"
+        ],
+        "transientData": {}
+    },
+    {
+        "transactionName": "createTransferEntry",
+        "transactionLabel": "A test createTransferEntry transaction",
+        "arguments": [
+            "001",
+            "some value"
+        ],
+        "transientData": {}
+    },
+    {
+        "transactionName": "readTransferEntry",
+        "transactionLabel": "A test readTransferEntry transaction",
+        "arguments": [
+            "001"
+        ],
+        "transientData": {}
+    },
+    {
+        "transactionName": "updateTransferEntry",
+        "transactionLabel": "A test updateTransferEntry transaction",
+        "arguments": [
+            "001",
+            "some other value"
+        ],
+        "transientData": {}
+    },
+    {
+        "transactionName": "deleteTransferEntry",
+        "transactionLabel": "A test deleteTransferEntry transaction",
+        "arguments": [
+            "001"
+        ],
+        "transientData": {}
+    }
+]

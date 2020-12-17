@@ -14,11 +14,11 @@ setup(
     package_dir={'': 'src'},
     packages=find_packages(where='src'),
     install_requires=[
-        'web3',
-        'sqlalchemy',
+        'web3 == 5.12.0',
         'requests == 2.20.0',
         'protobuf >= 3.10.0, < 4',
-        'fabric-sdk-py'
+        'fabric-sdk-py',
+        'python3-indy'
     ],
 	dependency_links=[
         'https://github.com/hyperledger/fabric-sdk-py/tarball/master#egg=fabric-sdk-py'

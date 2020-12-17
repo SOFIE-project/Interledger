@@ -1,14 +1,11 @@
-from data_transfer.interfaces import ErrorCode
-from data_transfer.interledger import Transfer
-from data_transfer.ethereum import EthereumResponder, EthereumInitiator, Web3Initializer
-from .test_setup import setUp, create_token, accept_token
-import pytest, asyncio
-import os, json
-import web3
+import pytest
 from web3 import Web3
 from uuid import uuid4
 from eth_abi import encode_abi
 
+from interledger.adapter.interfaces import ErrorCode
+from interledger.adapter.ethereum import EthereumResponder
+from .test_setup import setUp, create_token, accept_token
 
 
 # # # Local view

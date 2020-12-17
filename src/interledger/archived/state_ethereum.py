@@ -1,5 +1,5 @@
 from .state_interfaces import StateInitiator, StateResponder
-from data_transfer.state_implementation import DBInitiator, DBResponder
+from interledger.state_implementation import DBInitiator, DBResponder
 from .ethereum import EthereumInitiator, EthereumResponder
 from db_manager.db_manager import DBManager
 

@@ -1,47 +1,9 @@
 import asyncio
 from typing import Union, List
-from itertools import chain
-import concurrent.futures
-from enum import Enum
 from uuid import uuid4
 
-from .interfaces import Initiator, Responder, MultiResponder, ErrorCode, LedgerType
-
-
-class State(Enum):
-    """State of a data transfer during the protocol
-    """
-    READY = 1
-    INQUIRED = 2
-    ANSWERED = 3
-    SENT = 4
-    RESPONDED = 5
-    CONFIRMING = 6
-    FINALIZED = 7
-
-
-class Transfer(object):
-    """The information paired to a data transfer: its 'future' async call to accept(); the 'result' of the accept();
-    the transfer 'state'; the event transfer 'data'.
-    """
-    def __init__(self):
-        self.state = State.READY
-        self.payload = None # transactional data bundle
-        self.send_task = None
-        self.confirm_task = None
-        self.result = {}
-
-
-class TransferToMulti(Transfer):
-    """The information of a data transfer, that is aimed to for multi-ledger targets
-    """
-    def __init__(self):
-        super().__init__()
-        self.inquiry_tasks = None
-        self.inquiry_results = None
-        self.inquiry_decision = None
-        self.send_tasks = None
-        self.results = None
+from .adapter.interfaces import Initiator, Responder, MultiResponder, ErrorCode, LedgerType
+from .transfer import TransferStatus
 
 
 class Interledger(object):
@@ -168,8 +130,8 @@ class Interledger(object):
         if not self.multi:
             return
         for transfer in self.transfers:
-            if transfer.state == State.READY:
-                transfer.state = State.INQUIRED
+            if transfer.status == TransferStatus.READY:
+                transfer.status = TransferStatus.INQUIRED
                 nonce, data = transfer.payload['nonce'], transfer.payload['data']
                 transfer.inquiry_tasks = [asyncio.ensure_future( \
                     resp.send_data_inquire(nonce, data)) \
@@ -196,11 +158,11 @@ class Interledger(object):
             transfer.inquiry_results = [t.result() if t.done() else None for t in transfer.inquiry_tasks]
             status = [r['status'] for r in transfer.inquiry_results]
             transfer.inquiry_decision = status.count(True) >= self.threshold
-            transfer.state = State.ANSWERED
+            transfer.status = TransferStatus.ANSWERED
             self.transfers_answered.append(transfer)
 
         # update records
-        self.transfers_inquired = [transfer for transfer in self.transfers_inquired if transfer.state == State.INQUIRED]
+        self.transfers_inquired = [transfer for transfer in self.transfers_inquired if transfer.status == TransferStatus.INQUIRED]
 
 
     # Action
@@ -212,8 +174,8 @@ class Interledger(object):
                 # generate nonce
                 nonce, data = transfer.payload['nonce'], transfer.payload['data']
 
-                if transfer.state == State.READY:
-                    transfer.state = State.SENT                    
+                if transfer.status == TransferStatus.READY:
+                    transfer.status = TransferStatus.SENT                    
                     # send data to destination ledger
                     transfer.send_task = asyncio.ensure_future(self.responder.send_data(nonce, data))
                     self.transfers_sent.append(transfer)
@@ -223,8 +185,8 @@ class Interledger(object):
                 # generate nonce
                 nonce, data = transfer.payload['nonce'], transfer.payload['data']
 
-                if transfer.state == State.ANSWERED:
-                    transfer.state = State.SENT
+                if transfer.status == TransferStatus.ANSWERED:
+                    transfer.status = TransferStatus.SENT
                     if transfer.inquiry_decision: # inquiry agreed
                         transfer.send_tasks = [asyncio.ensure_future( \
                             resp.send_data(nonce, data)) \
@@ -237,7 +199,7 @@ class Interledger(object):
                     self.transfers_sent.append(transfer)
             
             # update records
-            self.transfers_answered = [transfer for transfer in self.transfers_answered if transfer.state == State.ANSWERED]
+            self.transfers_answered = [transfer for transfer in self.transfers_answered if transfer.status == TransferStatus.ANSWERED]
 
 
     # Trigger
@@ -258,20 +220,20 @@ class Interledger(object):
         if not self.multi:
             await asyncio.wait(send_tasks, return_when=asyncio.FIRST_COMPLETED)
             for transfer in self.transfers_sent:
-                if transfer.state == State.SENT and transfer.send_task.done():
+                if transfer.status == TransferStatus.SENT and transfer.send_task.done():
                     transfer.result = transfer.send_task.result()
-                    transfer.state = State.RESPONDED
+                    transfer.status = TransferStatus.RESPONDED
                     self.transfers_responded.append(transfer)
 
         else:
             await asyncio.wait(send_tasks, return_when=asyncio.ALL_COMPLETED)
             for transfer in self.transfers_sent:
                 transfer.results = [t.result() if t.done() else None for t in transfer.send_tasks]
-                transfer.state = State.RESPONDED
+                transfer.status = TransferStatus.RESPONDED
                 self.transfers_responded.append(transfer)
                 
         # update records
-        self.transfers_sent = [transfer for transfer in self.transfers_sent if transfer.state == State.SENT]
+        self.transfers_sent = [transfer for transfer in self.transfers_sent if transfer.status == TransferStatus.SENT]
 
     # Action
     async def process_result(self):
@@ -280,7 +242,7 @@ class Interledger(object):
         """
         if not self.multi:
             for transfer in self.transfers_responded:
-                if transfer.state == State.RESPONDED:
+                if transfer.status == TransferStatus.RESPONDED:
                     id = transfer.payload['id']
 
                     if transfer.result["status"]: # commit the transfer from initiator
@@ -298,11 +260,11 @@ class Interledger(object):
                         transfer.confirm_task = asyncio.ensure_future(self.initiator.abort_sending(id, reason))
                         self.results_aborting.append(transfer)
 
-                    transfer.state = State.CONFIRMING
+                    transfer.status = TransferStatus.CONFIRMING
         
         else: # multi-ledger mode
             for transfer in self.transfers_responded:
-                if transfer.state == State.RESPONDED:
+                if transfer.status == TransferStatus.RESPONDED:
                     id = transfer.payload['id']
 
                     if transfer.inquiry_decision:
@@ -323,11 +285,11 @@ class Interledger(object):
                             self.initiator.abort_sending(id, reason))
                         self.results_aborting.append(transfer)
 
-                transfer.state = State.CONFIRMING
+                transfer.status = TransferStatus.CONFIRMING
 
         # update records
         self.transfers_responded = [transfer for transfer in self.transfers_responded \
-            if transfer.state == State.RESPONDED]
+            if transfer.status == TransferStatus.RESPONDED]
 
 
     async def confirm_transfer(self):
@@ -339,10 +301,10 @@ class Interledger(object):
         await asyncio.wait(confirm_tasks, return_when=asyncio.FIRST_COMPLETED)
 
         for transfer in self.results_committing:
-            if transfer.state == State.CONFIRMING and transfer.confirm_task.done():
+            if transfer.status == TransferStatus.CONFIRMING and transfer.confirm_task.done():
                 # retrieve confirm result and update state
                 commit_result = transfer.confirm_task.result()
-                transfer.state = State.FINALIZED
+                transfer.status = TransferStatus.FINALIZED
                 # record confirm result
                 transfer.result['commit_status'] = commit_result['commit_status']
                 transfer.result['commit_tx_hash'] = commit_result['commit_tx_hash']
@@ -351,13 +313,13 @@ class Interledger(object):
                     transfer.result['commit_message'] = commit_result['commit_message']
                 # update records
                 self.results_commit.append(transfer.result)
-        self.results_committing = [transfer for transfer in self.results_committing if transfer.state == State.CONFIRMING]
+        self.results_committing = [transfer for transfer in self.results_committing if transfer.status == TransferStatus.CONFIRMING]
 
         for transfer in self.results_aborting:
-            if transfer.state == State.CONFIRMING and transfer.confirm_task.done():
+            if transfer.status == TransferStatus.CONFIRMING and transfer.confirm_task.done():
                 # retrieve confirm result and update state
                 abort_result = transfer.confirm_task.result()
-                transfer.state = State.FINALIZED
+                transfer.status = TransferStatus.FINALIZED
                 # record abort result
                 transfer.result['abort_status'] = abort_result['abort_status']
                 transfer.result['abort_tx_hash'] = abort_result['abort_tx_hash']
@@ -366,16 +328,16 @@ class Interledger(object):
                     transfer.result['abort_message'] = abort_result['abort_message']
                 # update records
                 self.results_abort.append(transfer.result)
-        self.results_aborting = [transfer for transfer in self.results_aborting if transfer.state == State.CONFIRMING]
+        self.results_aborting = [transfer for transfer in self.results_aborting if transfer.status == TransferStatus.CONFIRMING]
         
 
     def cleanup(self):
         """Cleanup the FINALIZED transfers from Interledger transfer arrays 
         """
-        self.transfers = [transfer for transfer in self.transfers if transfer.state != State.FINALIZED]
+        self.transfers = [transfer for transfer in self.transfers if transfer.status != TransferStatus.FINALIZED]
 
 
-    def _filterOut(self, _list, _state: State):
+    def _filterOut(self, _list, _state: TransferStatus):
         """Cleanup elements with a particular state from an input list 
         """
         return [t for t in _list if t.state is not _state]

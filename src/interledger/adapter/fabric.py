@@ -1,9 +1,9 @@
-import time, asyncio
+import asyncio
 import ast
 from hfc.fabric import Client
 
 from .interfaces import Initiator, Responder, ErrorCode
-from .interledger import Transfer
+from ..transfer import Transfer
 
 
 class FabricInitializer:

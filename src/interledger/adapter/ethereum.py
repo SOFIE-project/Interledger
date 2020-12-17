@@ -1,4 +1,4 @@
-import time, asyncio
+import asyncio
 from typing import List
 import functools
 import web3
@@ -6,7 +6,7 @@ Web3 = web3.Web3
 from web3.middleware import geth_poa_middleware
 
 from .interfaces import Initiator, Responder, MultiResponder, ErrorCode, LedgerType
-from .interledger import Transfer
+from ..transfer import Transfer
 
 
 # Web3 util

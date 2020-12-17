@@ -1,13 +1,14 @@
-from data_transfer.interledger import Interledger, Transfer, ErrorCode
-from data_transfer.ethereum import EthereumInitiator, EthereumResponder
-from .test_setup import setUp, create_token, accept_token, transfer_token
-from unittest.mock import patch
 import pytest, asyncio
-import os, json
-import web3
+from unittest.mock import patch
 from web3 import Web3
 from uuid import uuid4
 from eth_abi import encode_abi
+
+from interledger.adapter.interfaces import ErrorCode
+from interledger.interledger import Interledger
+from interledger.adapter.ethereum import EthereumInitiator, EthereumResponder
+from .test_setup import setUp, create_token, accept_token, transfer_token
+
 
 # Set this variable to True to execute these tests
 # Remember to have an ethereum instance with mining time *NOT* automatic (like in ganache)
@@ -115,7 +116,7 @@ async def test_interledger_with_two_ethereum_abort__txerror(config):
 
     print("Test setup ready")
 
-    with patch("data_transfer.interledger.Interledger.cleanup") as mock_cleanup:
+    with patch("interledger.interledger.Interledger.cleanup") as mock_cleanup:
         # mock cleanup to check the transfer reaches the end
 
         # Create interledger with a bridge in direction from A to B

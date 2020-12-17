@@ -4,6 +4,7 @@ import base64
 import requests
 
 from .interfaces import Responder, ErrorCode, LedgerType
+
     
 # Responder implementation
 class KSIResponder(Responder):

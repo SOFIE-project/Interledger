@@ -1,5 +1,6 @@
-from data_transfer.interledger import Transfer, ErrorCode
-from data_transfer.ethereum import EthereumInitiator
+from interledger.adapter.interfaces import ErrorCode
+from interledger.transfer import Transfer
+from interledger.adapter.ethereum import EthereumInitiator
 from .test_setup import setUp, create_token, accept_token, transfer_token
 import pytest, asyncio
 import os, json

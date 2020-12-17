@@ -6,8 +6,8 @@ from configparser import ConfigParser
 sys.path.append(os.path.realpath('.')) # assume running from project root
 from start_interledger import parse_fabric
 sys.path.append(os.path.realpath('./src'))
-from data_transfer.interledger import Interledger
-from data_transfer.fabric import FabricInitiator, FabricResponder
+from interledger.interledger import Interledger
+from interledger.adapter.fabric import FabricInitiator, FabricResponder
 from fabric_setup import fabric_setup, set_gopath
 
 

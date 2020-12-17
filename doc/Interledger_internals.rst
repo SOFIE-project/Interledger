@@ -30,19 +30,19 @@ The Interledger component consists of the following parts as shown in Figure 1:
 
 *Figure 1: Internal structure of the Interledger module*
 
-Currently, each *Interledger instance* forms a unidirection connection from one *Initiator* ledger to one or more *Responder* ledger(s). In order to support  bidirectional communication between two ledgers, two *Interledger instances* in opposite directions must be started as described below.
+Each *Interledger instance* forms a unidirection connection from one *Initiator* ledger to one or more *Responder* ledger(s). In order to support  bidirectional communication between two ledgers, two *Interledger instances* in opposite directions must be started as described below.
 
-.. _Python: ../src/data_transfer
+.. _Python: ../src/interledger
 
-Interledger supports both *one-on-one* transactions that connect an *Initiator* ledger with a single *Responder* ledger as shown in Figure 2, and *multi-ledger* transactions, where an *Initiator* ledger connects to multiple *Responder* ledgers as shown in Figure 3. *Multi-ledger* transactions require that either all the N *Responder* ledgers succeed with the transaction or that only k-out-of-N *Responder* ledgers succeed depending on the configuration chosen.
+Interledger supports both *one-on-one* transactions that connect an *Initiator* ledger with a single *Responder* ledger as shown in Figure 2, and *multi-ledger* transactions, where an *Initiator* ledger connects to multiple *Responder* ledgers as shown in Figure 3. *Multi-ledger* transactions require that either *all-N* *Responder* ledgers succeed with the transaction or that only *k-out-of-N* *Responder* ledgers succeed depending on the configuration chosen.
 
 .. figure:: ../figures/Interledger%20workflow%20-%20one-on-one%20mode.png
 
-*Figure 2: *One-on-one* transactions connect an *Initiator* with one *Responder*.
+*Figure 2: One-on-one transactions connect an Initiator with one Responder*.
 
 .. figure:: ../figures/Interledger%20workflow%20-%20multi-ledger%20mode.png
 
-*Figure 3: *Multi-ledger* transactions connect an *Initiator* with multiple *Responders
+*Figure 3: Multi-ledger transactions connect an Initiator with multiple Responders*
 
 
 Initiator adapter
@@ -60,7 +60,7 @@ The functions provided by Initiator adapter are:
 Responder adapter
 =================
 
-The *Responder adapter* interface receives transfer requests from the *core* and is responsible for relaying the transfer to the *Responder* ledger by executing the ``interledgerReceive()`` ledger function in a one-on-one transaction, or first executing the .
+The *Responder adapter* interface receives transfer requests from the *core* and is responsible for relaying the transfer to the *Responder* ledger by executing the ``interledgerReceive()`` ledger function in a one-on-one transaction, or first executing the ``interledgerInquire()`` function to check that sufficiently many *Responders* will accept the transaction before executing the ``interledgerReceive()`` function to commit the multi-ledger transaction.
 
 The functions provided by Responder is:
 
@@ -80,12 +80,26 @@ The functions ``commit_sending``, ``abort_sending`` and ``send_data`` have the f
         'message': str      # only with errors
     }
 
+State adapter
+=============
+
+During the development of the Decentralized Interledger (DIL), the concept of Interledger state management has been introduced: it enables a shared state for coordinating the multiple nodes of DIL, but it can also be used for faster crash recovery in single-node installations. Interledger state manager is the adapter that interacts with the different types of state management layers for the creation and update of transaction entries that are accessed by participating nodes.
+
+The functions provided by a state adapter are:
+
+* ``create_entry``: create entry of transaction in the state layer;
+* ``signal_send_acceptance``: update the state layer a transfer corresponding to a given id will be carried out by this IL node;
+* ``update_entry``: update the transfer entry status, and optionally its content in state layer;
+* ``receive_entry_events``: Check emmited events from state layer about transfers that become ready or responded.
+
+.. _DIL: ./DIL.md
+
 Transfer Object
 ===============
 
-The ``Transfer`` object is a data structure that contains the data necessary to perform the data transfer protocol. When an event is caught, the Initiator creates a Transfer object and this objects will be modified and processed by the protocol until the data transfer it handles will be finalized or aborted. Figure 2 shows the flow of the Transfer object between the Initiator and the Responder. 
+The ``Transfer`` object is a data structure that contains the data necessary to perform the data transfer. When an event is caught, the Initiator creates a Transfer object and this objects will be modified and processed until the data transfer it handles will be finalized or aborted. Figure 2 shows the flow of the Transfer object between the Initiator and the Responder. 
 
-A Transfer object includes a python ``future`` object which stores the asynchrounous call to the ``Responder.send_data()`` which triggers the protocol ``interledgerReceive()`` function. As soon this call terminates and the future object has a result:
+A Transfer object includes a python ``future`` object which stores the asynchrounous call to the ``Responder.send_data()``, which triggers the ``interledgerReceive()`` function. As soon this call terminates and the future object has a result:
 
 - if it is positive, i.e. the ``interledgerReceive()`` transaction was successful and ``InterledgerEventAccepted()`` was received, the Interledger will call the ``Initiator.commit_sending()`` of the *Initator*;
 
@@ -96,7 +110,7 @@ Interledger core
 ================
 The Interledger module functions as the core of the Interledger component.
 
-The Interledger module creates a bridge from a ledger A to a ledger B by instantiating a Initiator listening for events coming from ledger A and executing transactions to ledger B by instantiating a Responder. To handle transfers from ledger B to ledger A, simply instantiate a second Interledger class with Initiator connected to ledger B and Responder connected to ledger A.
+The Interledger module creates a bridge from a ledger A to a ledger B by instantiating a *Initiator* listening for events coming from ledger A and executing transactions to ledger B by instantiating a *Responder*. To handle transfers from ledger B to ledger A, simply instantiate a second Interledger class with *Initiator* connected to ledger B and *Responder* connected to ledger A.
 
 The functions provided by Interledger are:
 
@@ -126,10 +140,12 @@ Example of loop step:
         await send # send events to Responder, if any
         await process # process accepted events
 
+.. _`Protocol`:
+
 Detailed Overview of Interledger One-on-one Protocol
 ====================================================
 
-The figure 2 below shows a visual representation of a transfer between ledgers:
+The figure 4 below shows a visual representation of a transfer between ledgers:
 
 1. The Initiator starts listening for ``InterledgerEventSending`` operations from LedgerA;
 
@@ -156,7 +172,74 @@ The red and blue colors identify the caller of the transaction to a specific led
 
 .. figure:: ../figures/Interledger-Protocol.png
 
-*Figure 2: Interledger protocol*
+*Figure 4: Interledger protocol*
+
+-----------------
+Ledger Interfaces
+-----------------
+
+In order to utilise the Interledger component, *InterledgerSenderInterface* and *InterledgerReceiverInterface* must be implemented by the application on the respective ledgers by e.g. using smart contracts for Ethereum or chaincode for Hyperledger Fabric. Ethereum example for `sender`_ and `receiver`_ interfaces are provided in the `contracts`_ directory. 
+
+.. _sender: ../solidity/contracts/InterledgerSenderInterface.sol
+
+.. _receiver: ../solidity/contracts/InterledgerReceiverInterface.sol
+
+.. _contracts: ../solidity/contracts
+
+
+The example implementations of ledger interfaces include `DataTransceiver`_, `GameToken`_, and `HTLCEth`_. The detailed description about how the Interledger component is using ledger interfaces follows in Details of Interledger `Protocol`_ section.
+
+.. _DataTransceiver: ../solidity/contracts/DataTransceiver.sol
+
+.. _GameToken: ../solidity/contracts/GameToken.sol
+
+.. _HTLCEth: ../solidity/contracts/HTLCEth.sol
+
+The example implementations of ledger interfaces for Hyperledger Fabric are found under  `chaincode`_ folder.
+
+.. _chaincode: ../fabric/chaincode/src
+
+Sender Interface
+================
+
+The sender interface contains the following events and functions:
+
+.. code-block::
+
+    event InterledgerEventSending(uint256 id, bytes data);
+
+    function interledgerCommit(uint256 id) public;
+
+    function interledgerCommit(uint256 id, bytes memory data) public;
+
+    function interledgerAbort(uint256 id, uint256 reason) public;
+
+
+``event InterledgerEventSending(uint256 id, bytes data)`` initiates the Interledger protocol. The ``id`` is the apllication smart contract's internal identifier for the event that the application can choose at will. The id does not have to be unique, so the same id can e.g. be used for similar transaction or each transaction can have a unique id. The ``data`` is the data to be sent to another ledger. Interledger does not process the data in any way, so it's up to the application to encode the data and e.g. Solidity's ``abi.encode()`` function can be used to encode any data structure inside the ``data`` parameter.
+
+``function interledgerCommit(uint256 id)`` is be called by Interledger to conclude a successful Interledger transaction. The ``id`` parameter is the same as in ``InterledgerEventSending`` event. In some special cases, the overloaded ``function interledgerCommit(uint256 id, bytes memory data)`` function is called instead: when storing hashes to KSI ledger, a new KSI signature id is generated, and this id will be relayed to the *Initator* ledger using the ``data`` parameter.
+
+``function interledgerAbort(uint256 id, uint256 reason)`` will be called by Interledger to conclude a failed Interledger transaction. The ``id`` parameter is the same as above, while the ``reason`` is ``ErrorCode`` defined in `interfaces`_.
+
+
+Receiver Interface
+==================
+
+The receiver interface contains the following functions and events:
+
+.. code-block::
+
+    function interledgerReceive(uint256 nonce, bytes memory data) public;
+
+    event InterledgerEventAccepted(uint256 nonce);
+
+    event InterledgerEventRejected(uint256 nonce);
+
+    
+``function interledgerReceive(uint256 nonce, bytes memory data)`` is called by the Interledger component to relay data to the destination ledger. The ``nonce`` is a nonce chosen by the Interledger component (it is used to internally keep track of each transaction even if the application chosen ids are not unique), while ``data`` is the data received from the sender.
+
+The application smart contract should then emit either the ``event InterledgerEventAccepted(uint256 nonce)`` or ``event InterledgerEventRejected(uint256 nonce)`` depending on whether it wants to accept the incoming data or not. The ``nonce`` parameter in the emitted event must match the received ``nonce``.
+    
 
 -----------------
 Ledger Interfaces
@@ -234,7 +317,7 @@ Extending the Interledger component to support additional ledgers consists of tw
 1. create new classes implementing the ``Initiator`` and/or ``Responder`` interfaces defined in the `interfaces`_ file, and
 2. add a new ledger type to the ``LedgerType`` class defined in the same file.
 
-.. _interfaces: ../src/data_transfer/interfaces.py
+.. _interfaces: ../src/interledger/adapter/interfaces.py
 
 As mentioned above, Initiator and Responder classes handle the communication with the ledgers/application smart contracts. the Initiator class must implement the ``listen_for_events``, ``commit_sending``, and ``abort_sending``  functions, while the Responder class must implement the ``send_data_inquire`` ``send_data`` functions.
 
