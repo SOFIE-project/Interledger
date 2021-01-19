@@ -13,8 +13,11 @@ RUN python3 setup.py develop
 # custom CMD should migrate smart contracts and start the Interledger
 FROM build AS interledger_compose
 
-RUN apk --no-cache add npm
+RUN apt-get update && \
+    apt-get -y install npm && \
+    rm -rf /var/lib/apt/lists/*
 WORKDIR /var/interledger/solidity
+RUN npm install -g npm@latest
 RUN npm install
 RUN npx truffle compile
 WORKDIR /var/interledger/
