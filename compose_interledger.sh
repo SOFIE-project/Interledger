@@ -10,11 +10,9 @@
 cp compose.cfg local-config.cfg
 
 # deploy smart contracts, this will update configuration file
-#apk add npm
-#npm install
 cd solidity/
-npx truffle migrate --reset --network compose_left
-npx truffle migrate --reset --network compose_right
+npx truffle migrate --reset --f 6 --to 6 --network compose_left
+npx truffle migrate --reset --f 6 --to 6 --network compose_right
 cd ..
 
 # copy the updated configuration file to shared directory
