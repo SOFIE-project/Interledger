@@ -16,7 +16,7 @@
   "author": "SOFIE Project",
   "license": "APL 2.0",
   "devDependencies": {
-    "@openzeppelin/contracts": "^2.5.0",
+    "@openzeppelin/contracts": "^4.7.2",
     "ganache-cli": "^6.9.1",
     "ini": "^1.3.5",
     "mocha-junit-reporter": "^1.23.3",
